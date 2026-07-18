@@ -5,6 +5,11 @@ project-insight — 省 token 的 AI agent 项目信息提取器。
 用正则从项目中精准提取关键信息，替代全量读取。
 所有模块输出合并为一个结构化 JSON 摘要。
 
+核心设计原则：
+  本项目只读代码文本文件（.py / .json / .yaml / .toml / .md 等），
+  非代码内容（二进制文件、模型权重、媒体文件、大体积数据）不读、不解析。
+  各模块内部通过扩展名白名单 + 文件大小上限实现尺度保护。
+
 用法:
     python scripts/project_insight.py [path] [--format json|plain] [--modules mod1,mod2,...]
 """

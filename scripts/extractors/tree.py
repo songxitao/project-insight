@@ -1,6 +1,13 @@
 """
 项目骨架树模块 — 递归扫描目录，生成过滤后的树结构。
 
+核心设计原则：
+  本项目只读代码文本文件，非代码内容（二进制、模型权重、媒体、数据）不读、不解析。
+  尺度保护策略：
+    - SKIP_DIRS 跳过已知非代码目录（model/、outputs/、venv/ 等）
+    - BINARY_EXTS 跳过已知二进制扩展名（_count_lines 中行数记 0，但保留路径和大小信息）
+    - MAX_LINES_READ_MB = 50MB 硬上限，任何超过此大小的文件不读内容
+
 用法:
     from extractors.tree import run
     result = run("/path/to/project")
