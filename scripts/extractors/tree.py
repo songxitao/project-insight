@@ -12,15 +12,36 @@ from pathlib import Path
 SKIP_DIRS = frozenset({
     '__pycache__', '.git', 'venv', '.venv', 'env',
     'node_modules', 'build', 'dist', '.pytest_cache',
-    '.ruff_cache', '.workbuddy', 'output', 'testset',
+    '.ruff_cache', '.workbuddy', 'output', 'outputs',
+    'testset', 'model', 'models', 'checkpoints',
     '.pilot_venv', '.superpowers', '.agents', '.claude',
     '.scratch', '.egg-info', 'site-packages', '__init__.py',
 })
 
+# 已知二进制/模型文件扩展名 — 跳过行数统计
+BINARY_EXTS = frozenset({
+    '.safetensors', '.bin', '.pt', '.pth', '.ckpt', '.onnx',
+    '.h5', '.pkl', '.joblib', '.gguf', '.ggml', '.npy',
+    '.npz', '.arrow', '.parquet', '.so', '.dll', '.pyd',
+    '.pyc', '.pyo', '.db', '.sqlite', '.sqlite3', '.jpg',
+    '.jpeg', '.png', '.gif', '.bmp', '.webp', '.mp4',
+    '.mp3', '.wav', '.flac', '.avi', '.mov', '.mkv',
+})
+
+# 超过此大小的文件跳过行数统计（避免读取大体积模型/数据文件）
+MAX_LINES_READ_MB = 50
+
 
 def _count_lines(filepath: str) -> int:
-    """简单行数计数（仅对文本文件）"""
+    """简单行数计数（仅对文本文件，跳过二进制和大文件）"""
     try:
+        fpath = Path(filepath)
+        # 按扩展名跳过已知二进制格式
+        if fpath.suffix.lower() in BINARY_EXTS:
+            return 0
+        # 按文件大小跳过大型文件
+        if fpath.stat().st_size > MAX_LINES_READ_MB * 1024 * 1024:
+            return 0
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             return sum(1 for _ in f)
     except Exception:

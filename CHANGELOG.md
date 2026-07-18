@@ -19,6 +19,11 @@
 - `imports` 模块：从 v1 中独立出顶层 import 提取，增加文档字符串跳过逻辑
 - `paths` 模块：从 v1 中独立出本地路径硬编码扫描
 
+### Fixed
+
+- `tree` 模块：`_count_lines` 对大文件/二进制文件行数统计导致卡死，新增 `BINARY_EXTS` 二进制扩展名跳过 + `MAX_LINES_READ_MB=50` 文件大小保护
+- `tree` 模块：`SKIP_DIRS` 补充 `outputs`/`model`/`models`/`checkpoints`，防止扫描模型权重目录或输出目录
+
 ## [0.1.0] - 2026-07-19
 
 ### Added

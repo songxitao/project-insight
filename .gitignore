@@ -11,3 +11,10 @@ dist/
 .ruff_cache/
 .workbuddy/
 .scratch/
+node_modules/
+output/
+outputs/
+model/
+models/
+checkpoints/
+*.log
