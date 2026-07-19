@@ -21,3 +21,40 @@ checkpoints/
 
 # AI agent 规划文档（不纳入项目版本）
 docs/planning/
+
+# Build artifacts
+*.pyc
+*.egg
+.eggs/
+.tox/
+.mypy_cache/
+
+# ML weights
+*.safetensors
+*.bin
+*.onnx
+*.pt
+*.pth
+*.h5
+*.pkl
+
+# Credentials
+.env
+.env.*
+*.pem
+*.key
+
+# Data files
+*.csv
+*.parquet
+*.arrow
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
