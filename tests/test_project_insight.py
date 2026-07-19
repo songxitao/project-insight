@@ -180,13 +180,17 @@ def test_print_plain(capsys):
 def test_format_generic_returns_string():
     """_format_generic 返回字符串而非直接打印"""
     data = {
-        'pyproject_deps': ['numpy', 'requests'],
-        'source_imports': {'main.py': ['os', 'sys']},
+        'project_tree': {
+            'path': 'project',
+            'children': [
+                {'path': 'README.md', 'tag': 'md', 'size_kb': 1, 'lines': 10},
+            ],
+        },
     }
-    output = _format_generic('deps', data)
+    output = _format_generic('tree', data)
     assert isinstance(output, str)
-    assert 'numpy' in output
-    assert 'main.py' in output
+    assert 'project/' in output
+    assert 'README.md' in output
 
 
 def test_format_generic_project_tree():

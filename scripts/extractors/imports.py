@@ -64,3 +64,13 @@ def run(root_dir: str) -> dict:
             result[str(rel_f)] = sorted(imports)
 
     return {'source_imports': result}
+
+
+def format_plain(data: dict) -> str:
+    source_imports = data.get('source_imports', {})
+    if not source_imports:
+        return ''
+    lines = [f"\n🔗 源码 import ({len(source_imports)} 个文件):"]
+    for f, imps in sorted(source_imports.items()):
+        lines.append(f"  {f} → {', '.join(sorted(imps))}")
+    return '\n'.join(lines)

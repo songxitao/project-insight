@@ -15,15 +15,10 @@
 
 from pathlib import Path
 
+from . import SKIP_DIRS as _BASE_SKIP_DIRS
 
-SKIP_DIRS = frozenset({
-    '__pycache__', '.git', 'venv', '.venv', 'env',
-    'node_modules', 'build', 'dist', '.pytest_cache',
-    '.ruff_cache', '.workbuddy', 'output', 'outputs',
-    'testset', 'model', 'models', 'checkpoints',
-    '.pilot_venv', '.superpowers', '.agents', '.claude',
-    '.scratch', '.egg-info', 'site-packages', '__init__.py',
-})
+
+SKIP_DIRS = _BASE_SKIP_DIRS | {'__init__.py'}
 
 # 已知二进制/模型文件扩展名 — 跳过行数统计
 BINARY_EXTS = frozenset({

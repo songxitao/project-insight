@@ -113,3 +113,27 @@ def run(root_dir: str) -> dict:
                 })
 
     return result
+
+
+def format_plain(data: dict) -> str:
+    lines = []
+    pyproject = data.get('pyproject_deps', [])
+    reqs = data.get('requirements_deps', [])
+    install = data.get('install_scripts', [])
+
+    if pyproject:
+        lines.append(f"\n\U0001f4e6 pyproject.toml 依赖 ({len(pyproject)} 项):")
+        for d in sorted(pyproject):
+            lines.append(f"  \u2022 {d}")
+
+    if reqs:
+        lines.append(f"\n\U0001f4dc requirements 依赖 ({len(reqs)} 项):")
+        for d in sorted(reqs):
+            lines.append(f"  \u2022 {d}")
+
+    if install:
+        lines.append(f"\n\U0001f4dc 安装脚本中的依赖:")
+        for s in install:
+            lines.append(f"  {s['file']}: {', '.join(s.get('packages', []))}")
+
+    return '\n'.join(lines)

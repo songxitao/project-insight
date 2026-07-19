@@ -22,7 +22,7 @@ ENTRY_PATTERNS = [
 
 # API 端点正则
 API_PATTERN = re.compile(
-    r"@(?:app|router|api)\.\s*(?:get|post|put|delete|patch|route|websocket)\s*\(\s*['\"](.+?)['\"]"
+    r"@(?:app|router|api)\.(?:get|post|put|delete|patch|route|websocket)\s*\(\s*['\"](.+?)['\"]"
 )
 
 
@@ -100,3 +100,23 @@ def run(root_dir: str) -> dict:
         'entry_points': entry_points,
         'api_endpoints': api_endpoints,
     }
+
+
+def format_plain(data: dict) -> str:
+    """将入口点与 API 端点格式化为纯文本摘要"""
+    lines = []
+    eps = data.get('entry_points', [])
+    apis = data.get('api_endpoints', [])
+
+    if eps:
+        lines.append(f"\n🚪 入口点 ({len(eps)} 个):")
+        for ep in eps:
+            lines.append(f"  [{ep['type']}] {ep['file']}:{ep['line']}")
+            lines.append(f"    └─ {ep['context'][:80]}...")
+
+    if apis:
+        lines.append(f"\n🌐 API 端点 ({len(apis)} 个):")
+        for ep in apis:
+            lines.append(f"  {ep['route']}  ({ep['file']}:{ep['line']})")
+
+    return '\n'.join(lines)

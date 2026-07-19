@@ -122,49 +122,7 @@ def _format_generic(module_name: str, data: dict) -> str:
         if isinstance(value, (list, dict)) and not value:
             continue
 
-        if key == 'pyproject_deps':
-            lines.append(f"\n📦 pyproject.toml 依赖 ({len(value)} 项):")
-            for d in sorted(value):
-                lines.append(f"  • {d}")
-
-        elif key == 'requirements_deps':
-            lines.append(f"\n📜 requirements 依赖 ({len(value)} 项):")
-            for d in sorted(value):
-                lines.append(f"  • {d}")
-
-        elif key == 'source_imports':
-            lines.append(f"\n🔗 源码 import ({len(value)} 个文件):")
-            for f, imps in sorted(value.items()):
-                lines.append(f"  {f} → {', '.join(sorted(imps))}")
-
-        elif key == 'install_scripts':
-            lines.append(f"\n📜 安装脚本中的依赖:")
-            for s in value:
-                lines.append(f"  {s['file']}: {', '.join(s.get('packages', []))}")
-
-        elif key == 'local_paths':
-            lines.append(f"\n⚠️  本地路径硬编码:")
-            for s in value:
-                for p in s['paths']:
-                    lines.append(f"  {s['file']} → {p}")
-
-        elif key == 'entry_points':
-            lines.append(f"\n🚪 入口点 ({len(value)} 个):")
-            for ep in value:
-                lines.append(f"  [{ep['type']}] {ep['file']}:{ep['line']}")
-                lines.append(f"    └─ {ep['context'][:80]}...")
-
-        elif key == 'api_endpoints':
-            lines.append(f"\n🌐 API 端点 ({len(value)} 个):")
-            for ep in value:
-                lines.append(f"  {ep['route']}  ({ep['file']}:{ep['line']})")
-
-        elif key == 'local_dep_graph':
-            lines.append(f"\n🔀 本地模块依赖图 ({len(value)} 条):")
-            for f, refs in sorted(value.items()):
-                lines.append(f"  {f} → {', '.join(refs)}")
-
-        elif key == 'project_tree':
+        if key == 'project_tree':
             lines.append(f"\n🌳 项目骨架树:")
             _append_tree(value, lines, indent=2)
 

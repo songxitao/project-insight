@@ -42,3 +42,15 @@ def run(root_dir: str) -> dict:
                 })
 
     return {'local_paths': result}
+
+
+def format_plain(data: dict) -> str:
+    """将扫描结果格式化为纯文本"""
+    local_paths = data.get('local_paths', [])
+    if not local_paths:
+        return ''
+    lines = ["\n⚠️  本地路径硬编码:"]
+    for s in local_paths:
+        for p in s['paths']:
+            lines.append(f"  {s['file']} → {p}")
+    return '\n'.join(lines)

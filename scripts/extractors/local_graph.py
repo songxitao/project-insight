@@ -109,3 +109,13 @@ def run(root_dir: str) -> dict:
     return {
         'local_dep_graph': local_dep_graph,
     }
+
+
+def format_plain(data: dict) -> str:
+    graph = data.get('local_dep_graph', {})
+    if not graph:
+        return ''
+    lines = [f"\n🔀 本地模块依赖图 ({len(graph)} 条):"]
+    for f, refs in sorted(graph.items()):
+        lines.append(f"  {f} → {', '.join(refs)}")
+    return '\n'.join(lines)
