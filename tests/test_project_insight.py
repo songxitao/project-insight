@@ -8,23 +8,29 @@ import pytest
 
 # scripts/ 已由 conftest.py 加入 sys.path，可直接 import
 from project_insight import (
-    EXTRACTOR_REGISTRY,
+    REGISTRY,
     ALL_MODULES,
     main,
     _print_plain,
-    _print_tree,
+    _format_generic,
 )
 
 
-# ── EXTRACTOR_REGISTRY 加载 ────────────────────────────────────
+# ── REGISTRY 加载 ────────────────────────────────────
 
 def test_registry_all_modules():
-    """所有 9 个模块都成功注册到 EXTRACTOR_REGISTRY"""
+    """所有 9 个模块都成功注册到 REGISTRY"""
     expected_modules = {
         'deps', 'imports', 'paths', 'tree', 'entries',
         'env_vars', 'local_graph', 'model_refs', 'urls',
     }
-    assert set(EXTRACTOR_REGISTRY.keys()) == expected_modules
+    assert set(REGISTRY.keys()) == expected_modules
+    # 验证新结构
+    for name in expected_modules:
+        entry = REGISTRY[name]
+        assert 'run' in entry
+        assert 'mod' in entry
+        assert callable(entry['run'])
     assert ALL_MODULES == sorted(expected_modules)
 
 
@@ -40,24 +46,25 @@ def test_main_default_path(monkeypatch, capsys):
 
 def test_main_with_path(tmp_project, monkeypatch, capsys):
     """指定临时目录应成功执行并产生输出"""
-    # 在临时项目中创建文件使 extractor 有内容可提取
     (tmp_project / "hello.py").write_text("import os\nimport sys\n", encoding="utf-8")
     monkeypatch.setattr(sys, 'argv', ['prog', str(tmp_project)])
     main()
     captured = capsys.readouterr()
-    # 至少应有输出且不含错误信息
     assert captured.out.strip()
     assert '错误' not in captured.out
 
 
 def test_main_json_format(tmp_project, monkeypatch, capsys):
-    """--format json 应输出合法 JSON"""
+    """--format json 应输出合法 JSON（命名空间结构）"""
     (tmp_project / "hello.py").write_text("import os\n", encoding="utf-8")
     monkeypatch.setattr(sys, 'argv', ['prog', str(tmp_project), '--format', 'json'])
     main()
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert isinstance(data, dict)
+    module_keys = {'deps', 'entries', 'env_vars', 'imports', 'local_graph',
+                   'model_refs', 'paths', 'tree', 'urls'}
+    assert module_keys.issubset(set(data.keys()))
 
 
 def test_main_with_modules(tmp_project, monkeypatch, capsys):
@@ -67,10 +74,10 @@ def test_main_with_modules(tmp_project, monkeypatch, capsys):
     main()
     captured = capsys.readouterr()
     data = json.loads(captured.out)
-    assert 'source_imports' in data
-    # 确保其他模块未运行
-    assert 'local_paths' not in data
-    assert 'project_tree' not in data
+    assert 'imports' in data
+    assert 'deps' in data
+    assert 'tree' not in data
+    assert 'paths' not in data
 
 
 def test_main_invalid_path(monkeypatch):
@@ -89,60 +96,77 @@ def test_main_unknown_module(tmp_project, monkeypatch):
     assert exc_info.value.code == 1
 
 
-# ── _print_plain() ─────────────────────────────────────────────
+# ── _print_plain() — 通用分发器 ────────────────────────────────
 
 def test_print_plain(capsys):
-    """_print_plain 能输出各种字段格式"""
+    """_print_plain 能通过通用分发和 format_plain 输出各种字段"""
     result = {
-        'pyproject_deps': ['numpy', 'requests'],
-        'requirements_deps': ['flask'],
-        'source_imports': {'main.py': ['os', 'sys']},
-        'install_scripts': [{'file': 'setup.sh', 'packages': ['torch']}],
-        'local_paths': [{'file': 'config.py', 'paths': ['C:\\data']}],
-        'project_tree': {
-            'path': 'src',
-            'children': [
-                {'path': 'main.py', 'tag': 'py', 'size_kb': 1, 'lines': 10},
+        'deps': {
+            'pyproject_deps': ['numpy', 'requests'],
+            'requirements_deps': ['flask'],
+            'install_scripts': [{'file': 'setup.sh', 'packages': ['torch']}],
+        },
+        'entries': {
+            'entry_points': [
+                {'type': 'function', 'file': 'main.py', 'line': 1, 'context': 'def main():'},
+            ],
+            'api_endpoints': [
+                {'route': '/api/v1', 'file': 'app.py', 'line': 10},
             ],
         },
-        'entry_points': [
-            {'type': 'function', 'file': 'main.py', 'line': 1, 'context': 'def main():'},
-        ],
-        'api_endpoints': [
-            {'route': '/api/v1', 'file': 'app.py', 'line': 10},
-        ],
         'env_vars': {
-            'python_sources': ['.env'],
-            'env_files': ['.env.example'],
-            'docker_compose': [],
+            'env_vars': {
+                'python_sources': ['.env'],
+                'env_files': ['.env.example'],
+                'docker_compose': [],
+            },
+            'env_vars_summary': [
+                {'name': 'API_KEY', 'required': True, 'sources': ['.env']},
+            ],
         },
-        'env_vars_summary': [
-            {'name': 'API_KEY', 'required': True, 'sources': ['.env']},
-        ],
-        'local_dep_graph': {'main.py': ['utils']},
-        'model_refs': [
-            {
-                'file': 'model.py',
-                'model_files': ['model.pt'],
-                'model_ids': [],
-                'model_dirs': [],
+        'imports': {
+            'source_imports': {'main.py': ['os', 'sys']},
+        },
+        'paths': {
+            'local_paths': [{'file': 'config.py', 'paths': ['C:\\data']}],
+        },
+        'tree': {
+            'project_tree': {
+                'path': 'src',
+                'children': [
+                    {'path': 'main.py', 'tag': 'py', 'size_kb': 1, 'lines': 10},
+                ],
             },
-        ],
-        'hardcoded_urls': [
-            {
-                'file': 'config.py',
-                'urls': ['http://example.com'],
-                'ports': [],
-                'localhost_ports': [],
-                'zero_host_ports': [],
-                'ips': [],
-            },
-        ],
+        },
+        'local_graph': {
+            'local_dep_graph': {'main.py': ['utils']},
+        },
+        'model_refs': {
+            'model_refs': [
+                {
+                    'file': 'model.py',
+                    'model_files': ['model.pt'],
+                    'model_ids': [],
+                    'model_dirs': [],
+                },
+            ],
+        },
+        'urls': {
+            'hardcoded_urls': [
+                {
+                    'file': 'config.py',
+                    'urls': ['http://example.com'],
+                    'ports': [],
+                    'localhost_ports': [],
+                    'zero_host_ports': [],
+                    'ips': [],
+                },
+            ],
+        },
     }
     _print_plain(result)
     captured = capsys.readouterr()
 
-    # 验证各类字段都被正确输出
     assert 'project-insight 项目信息摘要' in captured.out
     assert 'numpy' in captured.out
     assert 'flask' in captured.out
@@ -151,27 +175,37 @@ def test_print_plain(capsys):
     assert '/api/v1' in captured.out
 
 
-# ── _print_tree() ──────────────────────────────────────────────
+# ── _format_generic() — 返回字符串 ──────────────────────────────
 
-def test_print_tree(capsys):
-    """_print_tree 能递归打印树结构"""
-    tree = {
-        'path': 'project',
-        'children': [
-            {
-                'path': 'src',
-                'children': [
-                    {'path': 'main.py', 'tag': 'py', 'size_kb': 2, 'lines': 50},
-                ],
-            },
-            {'path': 'README.md', 'tag': 'md', 'size_kb': 1, 'lines': 10},
-        ],
+def test_format_generic_returns_string():
+    """_format_generic 返回字符串而非直接打印"""
+    data = {
+        'pyproject_deps': ['numpy', 'requests'],
+        'source_imports': {'main.py': ['os', 'sys']},
     }
-    _print_tree(tree)
-    captured = capsys.readouterr()
+    output = _format_generic('deps', data)
+    assert isinstance(output, str)
+    assert 'numpy' in output
+    assert 'main.py' in output
 
-    # 验证递归打印了各级节点
-    assert 'project/' in captured.out
-    assert 'src/' in captured.out
-    assert 'main.py' in captured.out
-    assert 'README.md' in captured.out
+
+def test_format_generic_project_tree():
+    """_format_generic 能格式化 project_tree"""
+    data = {
+        'project_tree': {
+            'path': 'project',
+            'children': [
+                {'path': 'main.py', 'tag': 'py', 'size_kb': 2, 'lines': 50},
+            ],
+        },
+    }
+    output = _format_generic('tree', data)
+    assert isinstance(output, str)
+    assert 'project/' in output
+    assert 'main.py' in output
+
+
+def test_format_generic_empty():
+    """_format_generic 空数据返回空字符串"""
+    assert _format_generic('deps', {}) == ''
+    assert _format_generic('nonexistent', {}) == ''
