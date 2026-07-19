@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0] - 2026-07-20
+
+### Added
+
+- 共享基础设施层：`extractors/__init__.py` 提供 `should_skip`、`iter_project_files`、`safe_read`、自动注册
+- `format_plain()` 接口：env_vars、model_refs、tree、urls 各自实现独立格式化
+- `[project.scripts]` CLI 入口：`pip install` 后可直接执行 `project-insight`
+- README：输出示例、安装方式、`--modules` 用法说明
+- 新增 deps 回归测试：尾部逗号场景、多 requirements 文件合并
+
+### Changed
+
+- JSON 输出从扁平结构改为命名空间：`{"deps": {...}, "tree": {...}}`
+- `_print_plain` 改为通用分发器，删除 `_format_env_vars`/`_format_model_refs`/`_format_urls`
+- `_format_generic` 返回 `str` 而非直接打印，提升可测试性
+- `REGISTRY` 从 `{name: func}` 改为 `{name: {'run': func, 'mod': module}}`
+- deps 的 `requirements_deps` 收集所有变体文件而非只取第一个
+- `SKILL_REFERENCE.md` 重写对齐 v2 架构
+
+### Fixed
+
+- `env_vars.py` 变量遮蔽 bug：`for p in p.parents` 中循环变量覆盖函数参数
+- `deps.py` 包名含尾部逗号：`group(0)` → `group(1)` 只取纯包名
+- 删除 7 处重复的 skip set 定义，统一在 `__init__.py` 管理
+
+### Removed
+
+- `scripts/project_insight_v1.py` 及对应测试文件
+
 ## [0.2.0] - 2026-07-19
 
 ### Added
