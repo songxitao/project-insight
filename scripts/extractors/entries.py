@@ -9,6 +9,8 @@
 import re
 from pathlib import Path
 
+from . import iter_project_files
+
 
 # 入口点正则
 ENTRY_PATTERNS = [
@@ -54,23 +56,14 @@ def run(root_dir: str) -> dict:
     entry_points = []
     api_endpoints = []
 
-    for f in sorted(root.rglob('*.py')):
-        if not f.is_file():
-            continue
-        if any(p.name in {'__pycache__', '.git', 'venv', '.venv', 'env',
-                          'node_modules', 'build', 'dist', '.pytest_cache',
-                          '.ruff_cache', '.workbuddy', 'output', 'testset',
-                          '.pilot_venv', '.superpowers', '.agents', '.claude',
-                          '.scratch'}
-               for p in f.parents):
-            continue
-
+    for rel_f in iter_project_files(root, extensions=('.py',)):
+        f = root / rel_f
         snippet = _read_snippet(str(f))
         if not snippet:
             continue
 
         lines = snippet.split('\n')
-        rel = str(f.relative_to(root))
+        rel = str(rel_f)
 
         # 匹配入口点
         for pattern, entry_type in ENTRY_PATTERNS:

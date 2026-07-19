@@ -10,6 +10,8 @@ import re
 from pathlib import Path
 from collections import defaultdict
 
+from . import iter_project_files, should_skip, safe_read
+
 
 PYTHON_ENV_PATTERNS = [
     re.compile(r"os\.environ\.get\(\s*['\"](.+?)['\"]"),
@@ -110,15 +112,6 @@ def _extract_from_docker_compose(filepath: str) -> list:
     return results
 
 
-def _is_skip_dirs(p: Path) -> bool:
-    skip = {'__pycache__', '.git', 'venv', '.venv', 'env',
-            'node_modules', 'build', 'dist', '.pytest_cache',
-            '.ruff_cache', '.workbuddy', 'output', 'testset',
-            '.pilot_venv', '.superpowers', '.agents', '.claude',
-            '.scratch'}
-    return any(p.name in skip for p in p.parents)
-
-
 def run(root_dir: str) -> dict:
     """提取项目中的环境变量引用"""
     root = Path(root_dir)
@@ -130,9 +123,8 @@ def run(root_dir: str) -> dict:
     }
 
     # 扫描所有 .py 文件
-    for f in sorted(root.rglob('*.py')):
-        if not f.is_file() or _is_skip_dirs(f):
-            continue
+    for rel_f in iter_project_files(root, extensions=('.py',)):
+        f = root / rel_f
         envs = _extract_from_python(str(f))
         if envs:
             grouped['python_sources'].append({
@@ -192,3 +184,23 @@ def run(root_dir: str) -> dict:
         'env_vars': grouped,
         'env_vars_summary': summary,
     }
+
+
+def format_plain(data: dict) -> str:
+    """T3 统一 plain 文本输出"""
+    lines = ['\n🔑 环境变量:']
+    grouped = data.get('env_vars', {})
+    if grouped:
+        py_count = len(grouped.get('python_sources', []))
+        env_count = len(grouped.get('env_files', []))
+        dc_count = len(grouped.get('docker_compose', []))
+        lines.append(f"  Python 来源: {py_count} 个文件")
+        lines.append(f"  环境文件: {env_count} 个文件")
+        lines.append(f"  Docker Compose: {dc_count} 个文件")
+    summary = data.get('env_vars_summary', [])
+    if summary:
+        for v in summary:
+            req = '必需' if v['required'] else '可选'
+            srcs = ', '.join(set(v['sources']))
+            lines.append(f"  {req} {v['name']}  (来自: {srcs})")
+    return '\n'.join(lines)

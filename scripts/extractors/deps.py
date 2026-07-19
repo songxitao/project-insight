@@ -9,6 +9,8 @@
 import re
 from pathlib import Path
 
+from . import iter_project_files, safe_read
+
 DEP_PATTERN = re.compile(
     r'^[\s\'"]*([a-zA-Z0-9_\-\.]+(?:\[[a-zA-Z0-9_,\-\.]+\])?)'
     r'(?:\s*[><=!~]+\s*[\d.*,\s]+)?'
@@ -47,7 +49,7 @@ def scan_requirements_txt(filepath: str) -> list:
         no_comment = stripped.split(' #', 1)[0].split('\t#', 1)[0].strip()
         m = DEP_PATTERN.match(no_comment)
         if m:
-            deps.append(m.group(0).strip())
+            deps.append(m.group(1).strip())
     return deps
 
 
@@ -69,15 +71,6 @@ def is_script_file(f: Path) -> bool:
     if f.name.lower() in ('dockerfile', 'dockerfile.dev', 'dockerfile.prod'):
         return True
     return False
-
-
-def skip_dir(name: str) -> bool:
-    skip_dirs = {'__pycache__', '.git', 'venv', '.venv', 'env',
-                 'node_modules', 'build', 'dist', '.pytest_cache',
-                 '.ruff_cache', '.workbuddy', 'output', 'testset',
-                 '.pilot_venv', '.superpowers', '.agents', '.claude',
-                 '.scratch', '.egg-info', '*.egg-info', 'site-packages'}
-    return name in skip_dirs
 
 
 def run(root_dir: str) -> dict:
@@ -106,25 +99,16 @@ def run(root_dir: str) -> dict:
     for req_name in req_candidates:
         req_file = root / req_name
         if req_file.exists():
-            result['requirements_deps'] = scan_requirements_txt(str(req_file))
-            break
+            result['requirements_deps'].extend(scan_requirements_txt(str(req_file)))
 
     # 安装脚本中的依赖
-    for f in sorted(root.rglob('*')):
-        if not f.is_file():
-            continue
-        if any(p.name in {'__pycache__', '.git', 'venv', '.venv', 'env',
-                          'node_modules', 'build', 'dist', '.pytest_cache',
-                          '.ruff_cache', '.workbuddy', 'output', 'testset',
-                          '.pilot_venv', '.superpowers', '.agents', '.claude',
-                          '.scratch'}
-               for p in f.parents):
-            continue
-        if is_script_file(f):
-            pkgs = scan_install_commands(str(f))
+    for rel_f in iter_project_files(root, extensions=None):
+        abs_f = root / rel_f
+        if is_script_file(abs_f):
+            pkgs = scan_install_commands(str(abs_f))
             if pkgs:
                 result['install_scripts'].append({
-                    'file': str(f.relative_to(root)),
+                    'file': str(rel_f),
                     'packages': pkgs
                 })
 

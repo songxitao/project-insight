@@ -114,3 +114,28 @@ def run(root_dir: str) -> dict:
     root = Path(root_dir).resolve()
     tree = _build_tree(root, root)
     return {'project_tree': tree}
+
+
+def format_plain(data: dict) -> str:
+    """将树数据格式化为可读文本"""
+    def _append_tree(node, lines: list, indent: int = 0):
+        if node is None:
+            return
+        prefix = '  ' * indent
+        if 'children' in node:
+            lines.append(f"{prefix}📁 {node['path']}/")
+            for child in node.get('children', []):
+                _append_tree(child, lines, indent + 1)
+        else:
+            tag = node.get('tag', '')
+            size = node.get('size_kb', 0)
+            lines_count = node.get('lines', 0)
+            tag_str = f" {tag}" if tag else ""
+            lines.append(f"{prefix}📄 {node['path']}{tag_str}  ({size} KB, {lines_count} 行)")
+
+    tree = data.get('project_tree')
+    if tree is None:
+        return ''
+    lines = ["\n🌳 项目骨架树:"]
+    _append_tree(tree, lines, indent=2)
+    return '\n'.join(lines)

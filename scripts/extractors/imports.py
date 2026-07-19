@@ -9,6 +9,8 @@ Import 提取模块 — 从 .py 文件提取顶层 import。
 import re
 from pathlib import Path
 
+from . import iter_project_files
+
 
 IMPORT_PATTERN = re.compile(
     r'^(?:import|from)\s+([a-zA-Z0-9_\.]+)', re.MULTILINE
@@ -55,19 +57,10 @@ def run(root_dir: str) -> dict:
     root = Path(root_dir)
     result = {}
 
-    for f in sorted(root.rglob('*.py')):
-        if not f.is_file():
-            continue
-        if any(p.name in {'__pycache__', '.git', 'venv', '.venv', 'env',
-                          'node_modules', 'build', 'dist', '.pytest_cache',
-                          '.ruff_cache', '.workbuddy', 'output', 'testset',
-                          '.pilot_venv', '.superpowers', '.agents', '.claude',
-                          '.scratch'}
-               for p in f.parents):
-            continue
+    for rel_f in iter_project_files(root, extensions=('.py',)):
+        f = root / rel_f
         imports = scan_imports(str(f))
         if imports:
-            rel = str(f.relative_to(root))
-            result[rel] = sorted(imports)
+            result[str(rel_f)] = sorted(imports)
 
     return {'source_imports': result}

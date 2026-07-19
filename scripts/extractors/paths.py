@@ -9,6 +9,8 @@
 import re
 from pathlib import Path
 
+from . import iter_project_files
+
 
 PATH_PATTERN = re.compile(
     r'(?:sys\.path\.insert|sys\.path\.append|PYTHONPATH|PATH=)'
@@ -27,23 +29,15 @@ def run(root_dir: str) -> dict:
     root = Path(root_dir)
     result = []
 
-    for f in sorted(root.rglob('*')):
-        if not f.is_file():
-            continue
-        if any(p.name in {'__pycache__', '.git', 'venv', '.venv', 'env',
-                          'node_modules', 'build', 'dist', '.pytest_cache',
-                          '.ruff_cache', '.workbuddy', 'output', 'testset',
-                          '.pilot_venv', '.superpowers', '.agents', '.claude',
-                          '.scratch'}
-               for p in f.parents):
-            continue
+    for rel_f in iter_project_files(root, extensions=None):
+        f = root / rel_f
         ext = f.suffix.lower()
         if ext in ('.py', '.bat', '.sh', '.ps1') or \
            f.name.lower() in ('dockerfile', 'dockerfile.dev', 'dockerfile.prod'):
             paths = scan_local_paths(str(f))
             if paths:
                 result.append({
-                    'file': str(f.relative_to(root)),
+                    'file': str(rel_f),
                     'paths': paths
                 })
 

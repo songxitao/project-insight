@@ -9,6 +9,8 @@
 from pathlib import Path
 import re
 
+from . import iter_project_files
+
 
 def _collect_local_modules(root: Path) -> dict:
     """收集项目内的 Python 模块名，注册所有可能的模块名变体。
@@ -20,18 +22,8 @@ def _collect_local_modules(root: Path) -> dict:
     modules = {}
 
     # 收集所有 .py 文件
-    for f in root.rglob('*.py'):
-        if not f.is_file():
-            continue
-        if any(p.name in {'__pycache__', '.git', 'venv', '.venv', 'env',
-                          'node_modules', 'build', 'dist', '.pytest_cache',
-                          '.ruff_cache', '.workbuddy', 'output', 'testset',
-                          '.pilot_venv', '.superpowers', '.agents', '.claude',
-                          '.scratch'}
-               for p in f.parents):
-            continue
-        rel = f.relative_to(root)
-        parts = list(rel.parts)
+    for rel_f in iter_project_files(root, extensions=('.py',)):
+        parts = list(rel_f.parts)
 
         # 去掉 .py 后缀
         parts[-1] = parts[-1][:-3] if parts[-1].endswith('.py') else parts[-1]
@@ -43,7 +35,7 @@ def _collect_local_modules(root: Path) -> dict:
             module_path = '.'.join(parts)
 
         if module_path:
-            modules[module_path] = str(rel)
+            modules[module_path] = str(rel_f)
 
             # 也注册所有子路径变体（去掉顶层目录前缀）
             # 例如 scripts.extractors.deps → extractors.deps
@@ -51,7 +43,7 @@ def _collect_local_modules(root: Path) -> dict:
             for i in range(1, len(dot_parts)):
                 sub_path = '.'.join(dot_parts[i:])
                 if sub_path not in modules:
-                    modules[sub_path] = str(rel)
+                    modules[sub_path] = str(rel_f)
 
             # 注册父包
             parent_parts = parts[:-1]
@@ -74,19 +66,11 @@ def _get_source_imports(root_dir: str) -> dict:
     from extractors.imports import scan_imports
     root = Path(root_dir)
     result = {}
-    for f in sorted(root.rglob('*.py')):
-        if not f.is_file():
-            continue
-        if any(p.name in {'__pycache__', '.git', 'venv', '.venv', 'env',
-                          'node_modules', 'build', 'dist', '.pytest_cache',
-                          '.ruff_cache', '.workbuddy', 'output', 'testset',
-                          '.pilot_venv', '.superpowers', '.agents', '.claude',
-                          '.scratch'}
-               for p in f.parents):
-            continue
+    for rel_f in iter_project_files(root, extensions=('.py',)):
+        f = root / rel_f
         imports = scan_imports(str(f))
         if imports:
-            result[str(f.relative_to(root))] = imports
+            result[str(rel_f)] = imports
     return result
 
 

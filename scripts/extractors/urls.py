@@ -9,6 +9,8 @@
 import re
 from pathlib import Path
 
+from . import iter_project_files
+
 
 PORT_PATTERN = re.compile(r"(?:port|PORT)\s*[=:]\s*(\d{4,5})")
 LOCALHOST_PORT_PATTERN = re.compile(r"localhost:(\d{4,5})")
@@ -65,15 +67,6 @@ def _scan_file(filepath: str, rel: str) -> dict:
     return result
 
 
-def _is_skip_dirs(p: Path) -> bool:
-    skip = {'__pycache__', '.git', 'venv', '.venv', 'env',
-            'node_modules', 'build', 'dist', '.pytest_cache',
-            '.ruff_cache', '.workbuddy', 'output', 'testset',
-            '.pilot_venv', '.superpowers', '.agents', '.claude',
-            '.scratch'}
-    return any(part.name in skip for part in p.parents)
-
-
 def run(root_dir: str) -> dict:
     """提取项目中的硬编码端口、URL 和 IP 地址"""
     root = Path(root_dir)
@@ -82,18 +75,12 @@ def run(root_dir: str) -> dict:
     all_urls = set()
     all_ips = set()
 
-    for f in sorted(root.rglob('*')):
-        if not f.is_file():
-            continue
-        if _is_skip_dirs(f):
-            continue
+    extensions = ('.py', '.bat', '.sh', '.ps1', '.yaml', '.yml',
+                  '.json', '.toml', '.cfg', '.ini', '.env', '.conf')
+    for rel_f in iter_project_files(root, extensions=extensions):
+        f = root / rel_f
 
-        ext = f.suffix.lower()
-        if ext not in ('.py', '.bat', '.sh', '.ps1', '.yaml', '.yml',
-                       '.json', '.toml', '.cfg', '.ini', '.env', '.conf'):
-            continue
-
-        rel = str(f.relative_to(root))
+        rel = str(rel_f)
         result = _scan_file(str(f), rel)
         if result:
             entry = {'file': rel}
@@ -122,3 +109,26 @@ def run(root_dir: str) -> dict:
             'unique_ips': sorted(all_ips),
         },
     }
+
+
+def format_plain(data: dict) -> str:
+    """格式化硬编码 URL/端口/IP 展示"""
+    lines = []
+    refs = data.get('hardcoded_urls', [])
+
+    field_labels = {
+        'ports': '端口',
+        'localhost_ports': 'localhost',
+        'zero_host_ports': '0.0.0.0',
+        'urls': 'URL',
+        'ips': 'IP',
+    }
+
+    lines.append(f"\n🔗 硬编码 URL/端口/IP ({len(refs)} 个文件):")
+    for entry in refs:
+        lines.append(f"  {entry['file']}")
+        for key, label in field_labels.items():
+            values = entry.get(key)
+            if values:
+                lines.append(f"    └─ {label}: {values}")
+    return '\n'.join(lines)

@@ -9,6 +9,8 @@
 import re
 from pathlib import Path
 
+from . import iter_project_files
+
 
 # 模型文件路径引用
 MODEL_FILE_PATTERN = re.compile(
@@ -52,15 +54,6 @@ def _scan_file(filepath: str, rel: str) -> dict:
     return result
 
 
-def _is_skip_dirs(p: Path) -> bool:
-    skip = {'__pycache__', '.git', 'venv', '.venv', 'env',
-            'node_modules', 'build', 'dist', '.pytest_cache',
-            '.ruff_cache', '.workbuddy', 'output', 'testset',
-            '.pilot_venv', '.superpowers', '.agents', '.claude',
-            '.scratch'}
-    return any(part.name in skip for part in p.parents)
-
-
 def run(root_dir: str) -> dict:
     """提取项目中的模型/权重文件引用"""
     root = Path(root_dir)
@@ -69,19 +62,12 @@ def run(root_dir: str) -> dict:
     all_model_ids = []
     all_model_dirs = []
 
-    for f in sorted(root.rglob('*')):
-        if not f.is_file():
-            continue
-        if _is_skip_dirs(f):
-            continue
-
-        ext = f.suffix.lower()
-        if ext not in ('.py', '.bat', '.sh', '.ps1', '.yaml', '.yml', '.json'):
-            continue
-
-        result = _scan_file(str(f), str(f.relative_to(root)))
+    extensions = ('.py', '.bat', '.sh', '.ps1', '.yaml', '.yml', '.json')
+    for rel_f in iter_project_files(root, extensions=extensions):
+        f = root / rel_f
+        result = _scan_file(str(f), str(rel_f))
         if result:
-            rel = str(f.relative_to(root))
+            rel = str(rel_f)
             entry = {'file': rel}
             if 'model_files' in result:
                 entry['model_files'] = result['model_files']
@@ -102,3 +88,27 @@ def run(root_dir: str) -> dict:
             'unique_model_dirs': sorted(set(all_model_dirs)),
         },
     }
+
+
+def format_plain(data: dict) -> str:
+    """T3 统一 plain 文本输出"""
+    lines = []
+    entries = data.get('model_refs', [])
+    if entries:
+        lines.append(f"\n🤖 模型引用 ({len(entries)} 个文件):")
+        for entry in entries:
+            file = entry.get('file', '')
+            files = entry.get('model_files', [])
+            ids = entry.get('model_ids', [])
+            dirs = entry.get('model_dirs', [])
+            parts = []
+            if files:
+                parts.append(f"文件: {', '.join(files)}")
+            if ids:
+                parts.append(f"ID: {', '.join(ids)}")
+            if dirs:
+                parts.append(f"目录: {', '.join(dirs)}")
+            lines.append(f"  {file}")
+            for p in parts:
+                lines.append(f"    └─ {p}")
+    return '\n'.join(lines)
