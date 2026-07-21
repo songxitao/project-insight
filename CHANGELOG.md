@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.1] - 2026-07-22
+
+### Fixed
+
+- `model_refs`: `MODEL_DIR_PATTERN` raw string `\\s` 转义 bug → 分 quoted/unquoted 双分支修复，`"save_dir"`/`"D:\models\qwen"` 等路径不再截断 (P0)
+- `model_refs`: `MODEL_FILE_PATTERN` 加 `\w\.` 约束拒绝孤立扩展名（`".bin"` 等），`(?i:)` 支持大写扩展名（`"MODEL.PT"`）
+- `model_refs`: JSON 文件 from 文本正则改为 `json.loads()` 结构化解析 + `looks_like_model_path()` 共享谓词，消除 weight_map 3000+ 行爆炸
+- `model_refs`: `MODEL_DIR_PATTERN` unquoted 分支增加 `(` 排除，防止 `some_func(arg)` 误捕获
+- `model_refs`: `looks_like_model_path()` 与 `MODEL_FILE_PATTERN` 语义对齐（`\w` → `[\w-]`），JSON/正则两路对连字符文件名行为一致
+
+### Changed
+
+- `model_refs`: Counter→list-of-dicts 转换 4 处重复提取为 `_freq_to_dict()` 共享函数（S1 重构）
+- `model_refs`: 输出从 flat list 改为 `[{path, count}]` 频次计数格式（Counter 聚合，信息无损）
+- `model_refs`: 扫描白名单扩展 `.md/.toml/.cfg/.ini`（README/config 中 `from_pretrained` 常见）
+- `model_refs`: 测试从 7 个增至 24 个（DIR golden 表、JSON 路由、爆炸回归、语义对齐全覆盖）
+
+### Removed
+
+- `model_refs`: 移除对 `model.safetensors.index.json` 的正则扫描（显式跳过，模型元数据非引用代码）
+
 ## [0.3.0] - 2026-07-20
 
 ### Added

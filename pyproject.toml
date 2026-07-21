@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-insight"
-version = "0.3.0"
+version = "0.3.1"
 description = "省 token 的 AI agent 项目信息提取器。用正则从项目中精准提取关键信息，替代全量读取。"
 readme = "README.md"
 requires-python = ">=3.8"
