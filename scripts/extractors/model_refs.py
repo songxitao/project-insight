@@ -19,7 +19,7 @@ from . import iter_project_files
 
 # 模型文件路径引用 — 要求点前至少一个词字符（拒绝孤立扩展名），扩展名大小写不敏感
 MODEL_FILE_PATTERN = re.compile(
-    r"""['"]([^'"]*\w\.(?i:onnx|pt|pth|bin|safetensors|gguf|ckpt|h5|tflite|mlmodel))['"]"""
+    r"""['"]([^'"]*[\w-]\.(?i:onnx|pt|pth|bin|safetensors|gguf|ckpt|h5|tflite|mlmodel))['"]"""
 )
 
 # HuggingFace/ModelScope 模型 ID
@@ -30,7 +30,7 @@ MODEL_ID_PATTERN = re.compile(
 # 模型目录配置 — 分 quoted / unquoted 双分支
 # 注意 raw string 中 `\s` 是字面反斜杠+s，所以这里用 [^\s,...]（单反斜杠）
 MODEL_DIR_PATTERN = re.compile(
-    r"""(?:model_dir|model_path|checkpoint|weights)\s*[=:]\s*(?:['"]([^'"]+)['"]|([^\s,)\]}"']+))"""
+    r"""(?:model_dir|model_path|checkpoint|weights)\s*[=:]\s*(?:['"]([^'"]+)['"]|([^\s,)\]}"'(]+))"""
 )
 
 # 模型扩展名 — 被 JSON 路径与正则路径共同使用
@@ -80,6 +80,17 @@ def _scan_json_file(content: str) -> list:
     return result
 
 
+def _freq_to_dict(items, key_name='path'):
+    """将可迭代对象按频次聚合为 [{key_name: item, 'count': n}] 格式。
+
+    消除 _scan_file 中多处重复的 Counter→dict 转换代码。
+    """
+    freq = Counter(items)
+    if not freq:
+        return None
+    return [{key_name: item, 'count': c} for item, c in freq.most_common()]
+
+
 def _scan_file(filepath: str, rel: str) -> dict:
     """扫描单个文件中的模型引用"""
     try:
@@ -95,38 +106,33 @@ def _scan_file(filepath: str, rel: str) -> dict:
 
     result = {}
 
+    # --- 模型文件路径（分流：JSON vs 正则）---
     if str(filepath).endswith('.json'):
-        # JSON 路径：结构化解析，只遍历 string value
         raw_files = _scan_json_file(content)
         if raw_files is None:
-            # JSON 解析失败 → 回退到正则路径
             raw_files = [m.group(1) for m in MODEL_FILE_PATTERN.finditer(content)]
-        if raw_files:
-            freq = Counter(raw_files)
-            result['model_files'] = [
-                {'path': p, 'count': c} for p, c in freq.most_common()
-            ]
+        freq_result = _freq_to_dict(raw_files) if raw_files else None
     else:
-        # 正则路径：对自由文本用正则提取
-        freq = Counter(m.group(1) for m in MODEL_FILE_PATTERN.finditer(content))
-        if freq:
-            result['model_files'] = [
-                {'path': p, 'count': c} for p, c in freq.most_common()
-            ]
+        freq_result = _freq_to_dict(
+            m.group(1) for m in MODEL_FILE_PATTERN.finditer(content)
+        )
+    if freq_result:
+        result['model_files'] = freq_result
 
-    # 模型 ID（去重 + 频次计数）
-    freq = Counter(m.group(1) for m in MODEL_ID_PATTERN.finditer(content))
-    if freq:
-        result['model_ids'] = [
-            {'id': i, 'count': c} for i, c in freq.most_common()
-        ]
+    # --- 模型 ID ---
+    freq_result = _freq_to_dict(
+        (m.group(1) for m in MODEL_ID_PATTERN.finditer(content)),
+        key_name='id',
+    )
+    if freq_result:
+        result['model_ids'] = freq_result
 
-    # 模型目录配置（去重 + 频次计数）
-    freq = Counter(m.group(1) or m.group(2) for m in MODEL_DIR_PATTERN.finditer(content))
-    if freq:
-        result['model_dirs'] = [
-            {'path': d, 'count': c} for d, c in freq.most_common()
-        ]
+    # --- 模型目录 ---
+    freq_result = _freq_to_dict(
+        (m.group(1) or m.group(2) for m in MODEL_DIR_PATTERN.finditer(content)),
+    )
+    if freq_result:
+        result['model_dirs'] = freq_result
 
     return result
 

@@ -195,3 +195,66 @@ def test_json_nested_string_value_extracted(tmp_project):
     assert "item1.onnx" in all_paths
     # item2.txt 不是模型扩展名，不应在结果中
     assert "item2.txt" not in all_paths
+
+
+# ===== DIR golden 表（P1 缺失测试）=====
+
+def test_dir_quoted_weights(tmp_project):
+    """model_dir: \"weights\" → 捕获 weights"""
+    (tmp_project / "config.yaml").write_text('model_dir: "weights"\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    dirs = [item['path'] for entry in result["model_refs"] for item in entry.get("model_dirs", [])]
+    assert "weights" in dirs
+
+def test_dir_weights_assign_best_pt(tmp_project):
+    """weights = \"best.pt\" → 捕获 best.pt（而非被 s 截断为 be）"""
+    (tmp_project / "train.py").write_text('weights = "best.pt"\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    dirs = [item['path'] for entry in result["model_refs"] for item in entry.get("model_dirs", [])]
+    assert "best.pt" in dirs
+
+def test_dir_windows_backslash_path(tmp_project):
+    """model_path: \"D:\\models\\qwen\" → 完整 Windows 路径不被截断"""
+    (tmp_project / "config.yaml").write_text('model_path: "D:\\models\\qwen"\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    dirs = [item['path'] for entry in result["model_refs"] for item in entry.get("model_dirs", [])]
+    assert any("D:" in d for d in dirs)
+
+def test_dir_save_dir(tmp_project):
+    """model_dir: \"save_dir\" → 捕获 save_dir（s 开头不截断）"""
+    (tmp_project / "config.yaml").write_text('model_dir: "save_dir"\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    dirs = [item['path'] for entry in result["model_refs"] for item in entry.get("model_dirs", [])]
+    assert "save_dir" in dirs
+
+# ===== E1 语义对齐测试 =====
+
+def test_model_file_with_hyphen(tmp_project):
+    """含连字符 \"my-model.pt\" 应被 MODEL_FILE_PATTERN 匹配（\w→[\w-]）"""
+    (tmp_project / "train.py").write_text('model = "my-model.pt"\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    paths = [item['path'] for entry in result["model_refs"] for item in entry.get("model_files", [])]
+    assert "my-model.pt" in paths
+
+def test_json_hyphen_model_file(tmp_project):
+    """JSON 中含连字符 \"my-model.pt\" 被 JSON 路径捕获"""
+    (tmp_project / "config.json").write_text('{"file": "my-model.pt"}\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    paths = [item['path'] for entry in result["model_refs"] for item in entry.get("model_files", [])]
+    assert "my-model.pt" in paths
+
+# ===== P2: .md/.toml 白名单扩展测试 =====
+
+def test_md_from_pretrained(tmp_project):
+    """README.md 中的 from_pretrained(\"...\") 可提取模型 ID"""
+    (tmp_project / "README.md").write_text('model = from_pretrained("bert-base-uncased")\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    ids = [item['id'] for entry in result["model_refs"] for item in entry.get("model_ids", [])]
+    assert "bert-base-uncased" in ids
+
+def test_toml_model_path(tmp_project):
+    """.toml 中的模型文件路径可提取"""
+    (tmp_project / "config.toml").write_text('model_path = "model.onnx"\n', encoding="utf-8")
+    result = run(str(tmp_project))
+    paths = [item['path'] for entry in result["model_refs"] for item in entry.get("model_files", [])]
+    assert "model.onnx" in paths
