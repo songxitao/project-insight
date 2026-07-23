@@ -3,85 +3,149 @@
   <img src="https://img.shields.io/badge/python-%3E%3D3.8-blue.svg" alt="Python >=3.8">
   <img src="https://github.com/songxitao/project-insight/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome">
+  <img src="https://img.shields.io/github/stars/songxitao/project-insight" alt="Stars">
 </p>
 
 <p align="center">
-  🎯 <a href="#-核心特性">核心特性</a>&nbsp&nbsp | &nbsp&nbsp 🏗️ <a href="#-架构设计">架构设计</a>&nbsp&nbsp | &nbsp&nbsp 🚀 <a href="#-闪电开始">闪电开始</a>&nbsp&nbsp | &nbsp&nbsp 📦 <a href="#-模块一览">模块一览</a>&nbsp&nbsp | &nbsp&nbsp 🔧 <a href="#-进阶调优">进阶调优</a>
+  🎯 <a href="#-这工具到底干嘛的">这工具到底干嘛的</a>&nbsp&nbsp | &nbsp&nbsp 🚀 <a href="#-快速上手">快速上手</a>&nbsp&nbsp | &nbsp&nbsp 🏗️ <a href="#-架构一览">架构一览</a>&nbsp&nbsp | &nbsp&nbsp 📦 <a href="#-扫描模块清单">模块清单</a>&nbsp&nbsp | &nbsp&nbsp 🔧 <a href="#-进阶用法">进阶用法</a>
 </p>
 
 # project-insight
 
-**省 token 的 AI agent 项目信息提取器。用正则从项目中精准提取关键信息，替代全量读取。**
+**把你的项目扔给 AI 之前，先跑一遍 project-insight。AI 花 1 秒读完摘要，而不是 10 分钟读你所有代码。**
 
-> ⚠️ 仅限 **Python 项目**（`.py` / `.toml` / `.yaml` / `.json` / `.md` 等文本文件）。二进制文件、模型权重、媒体文件不读不解析。
-
----
-
-## 💡 项目背景
-
-### 痛点
-
-AI agent 在理解一个项目时，传统做法是**全量读取代码文件**——这不仅消耗大量 token、拖慢响应速度，还会让模型在非关键内容（模型权重、媒体文件、依赖锁定等）上分散注意力。一个中等规模的 Python 项目动辄数百个文件，逐文件全量读取的成本极高。
-
-### 方案
-
-**project-insight** 用**精准正则提取**替代全量读取。10 个专业扫描模块各司其职，从源码中提取**结构化摘要**——依赖清单、入口点、环境变量、模块依赖图等——以最少的 token 消耗让 AI agent 在毫秒级理解项目全貌。
+> ⚠️ 目前仅支持 **Python 项目**（`.py` / `.toml` / `.yaml` / `.json` / `.md` 等文本文件）。二进制文件、模型权重、媒体文件不读不解析。
 
 ---
 
-## ✨ 核心特性
+## 🎯 这工具到底干嘛的
 
-| 特性 | 痛点 | 方案 | 价值 |
-|:---|:---|:---|:---|
-| **🎯 精准正则提取** | 全量读取浪费 token，模型注意力被稀释 | 10 个专业模块用正则靶向提取关键信息 | **token 消耗降低 90%+** |
-| **🧩 插件式自动发现** | 新增扫描逻辑需改动入口和注册表 | `pkgutil` 自动发现 + 命名空间隔离 | **新增模块零配置，即放即用** |
-| **🏗️ 共享基础设施层** | 每个扫描器重复实现遍历/跳过低级逻辑 | 统一 `iter_project_files` / `should_skip` / `safe_read` | **消灭 7 份重复代码，新增跳过目录改一处生效** |
-| **📊 命名空间输出** | 模块间 key 冲突导致数据静默覆盖 | `result[module_name] = runner(root)` | **每个模块独立命名空间，互不污染** |
-| **🎨 格式化下沉** | 展示逻辑与核心提取耦合 | 每个模块可选实现 `format_plain()` | **展示逻辑下沉到模块，主入口只剩通用分发器** |
-| **🔍 断裂引用检测** | 重构后路径断裂，CI 静默通过 | `file_refs` + `local_graph.broken_imports` + `--strict` 标志 | **CI 中自动拦截路径断裂事故** |
+### 一句话
+
+AI agent（Claude、GPT、Cursor、Copilot 这类）要理解一个项目时，传统做法是把几百个代码文件全读一遍——烧钱又慢。`project-insight` 用正则扫一遍你的项目目录，输出一份**结构化摘要**，AI 读完摘要就能了解项目全貌，不用真去翻文件。
+
+### 三个使用场景
+
+| 场景 | 痛点 | project-insight 能干嘛 |
+|:---|:---|:---|
+| **🤖 AI 接入项目** | 给 Claude/Cursor 一个新项目，它要读半天文件才能干活 | 跑一份 JSON 摘要喂给 AI，它秒懂项目用了什么依赖、有什么入口、环境变量是什么 |
+| **🔍 重构安全检查** | 你移动了一个文件，但忘了还有人用 `Path("old_path.py")` 引用它，CI 炸了 | `file_refs` 模块扫出所有路径引用 + 存在性检查，`--strict` 模式让 CI 直接拦截 |
+| **📋 项目快速概览** | 新同事加入项目，想快速了解项目结构和技术选型 | `tree` 看目录骨架，`deps` 看依赖，`imports` 看模块组织，`entries` 看有哪些入口 |
+
+### 一个输出例子
+
+```json
+# project-insight /path/to/project --format json
+{
+  "deps": {
+    "pyproject_deps": ["requests>=2.28.0", "click"],
+    "requirements_deps": ["flask", "pandas"]
+  },
+  "tree": {
+    "project_tree": { "path": ".", "size_kb": 120, "files": 34 }
+  },
+  "imports": {
+    "source_imports": {
+      "main.py": ["os", "sys", "json", "flask"],
+      "utils.py": ["re", "pathlib", "numpy"]
+    }
+  },
+  "entries": {
+    "entry_points": ["main.py → main()"],
+    "api_endpoints": ["/api/v1  (app.py:10)"]
+  },
+  "env_vars": {
+    "env_vars_summary": [
+      {"name": "API_KEY", "required": true, "sources": [".env"]}
+    ]
+  },
+  "file_refs": {
+    "file_refs": [
+      {"file": "tests/test_app.py", "line": 10, "ref": "config.json", "exists": true}
+    ]
+  }
+}
+```
 
 ---
 
-## 🏗️ 架构设计
+## 📣 更新日志
+
+### v0.4.1 — 2026-07-24
+
+- **修复**: `env_vars` 重复匹配 bug（6 条 pattern 合并为 4 条）
+- **修复**: `local_graph` import 路径截断导致断裂检测失准
+- **修复**: `file_refs` 漏报 `pathlib.Path("file.py")` 带模块前缀的情况
+- **改进**: 删除各处死代码，`safe_read` 统一使用
+- **README**: 重写为价值导向的描述方式
+
+### v0.4.0 — 2026-07-23
+
+- **新增**: `file_refs` 模块——扫描 `Path("")`/`open("")`/subprocess 三种相对路径引用，检查文件是否存在
+- **新增**: `--strict` / `-s` 标志——检测到断裂引用时 exit 1，CI 可用
+- **新增**: `local_graph.broken_imports`——import 目标存在性回查
+- **新增**: `env_vars` 补齐 `environ["KEY"]`/`environ.setdefault()` 等变体
+- **新增**: 端到端集成测试（10 模块全量验证）
+- 当前 **113 个测试**，CI 全绿
+
+---
+
+## 🚀 快速上手
+
+```bash
+# 1. 下载
+git clone https://github.com/songxitao/project-insight.git
+cd project-insight
+pip install -e .
+
+# 2. 运行
+project-insight /path/to/your/project
+
+# 3. JSON 输出（推荐给 AI agent 用）
+project-insight /path/to/your/project --format json
+```
+
+不安装也行，直接跑：
+
+```bash
+python scripts/project_insight.py /path/to/your/project --format json
+```
+
+### 只扫你关心的
+
+```bash
+# 只看依赖和目录结构
+project-insight . --modules "deps,tree"
+
+# 查文件引用断裂
+project-insight . --modules "file_refs,local_graph" --strict
+```
+
+---
+
+## 🏗️ 架构一览
 
 ```
 scripts/
-  └─ project_insight.py          ← CLI 入口 + 注册表 + 输出分发
+  └─ project_insight.py          ← CLI 入口 + 分发
   └─ extractors/
-      ├─ __init__.py              ← 共享基础设施（遍历/跳过/读取/自动注册）
-      ├─ deps.py                  ← 依赖提取
-      ├─ entries.py               ← 入口点与 API 端点
-      ├─ file_refs.py             ← 文件引用扫描
-      ├─ env_vars.py              ← 环境变量引用
-      ├─ imports.py               ← 顶层 import 提取
-      ├─ local_graph.py           ← 本地模块依赖图
-      ├─ model_refs.py            ← 模型/权重文件引用
-      ├─ paths.py                 ← 本地硬编码路径
-      ├─ tree.py                  ← 项目骨架树
-      └─ urls.py                  ← 端口与 URL 硬编码
+      ├─ __init__.py              ← 共享工具（遍历/跳过/读取）+ 自动注册
+      ├─ deps.py                  ← 依赖
+      ├─ entries.py               ← 入口点
+      ├─ file_refs.py             ← 文件引用
+      ├─ env_vars.py              ← 环境变量
+      ├─ imports.py               ← import
+      ├─ local_graph.py           ← 本地依赖图
+      ├─ model_refs.py            ← 模型引用
+      ├─ paths.py                 ← 硬编码路径
+      ├─ tree.py                  ← 项目骨架
+      └─ urls.py                  ← URL/端口
 ```
 
-### 工作流
-
-```
-项目根目录 ──→ iter_project_files() ──→ 10 个提取器并行
-                              ↓
-                    should_skip() 过滤 × safe_read() 读取
-                              ↓
-                    每个提取器返回结构化 dict
-                              ↓
-                    REGISTRY 分发 + 命名空间合并
-                              ↓
-                ┌─── JSON 输出（AI agent 消费）
-                └─── Plain 输出（人类可读）
-```
-
-### 注册发现机制
-
-新增一个提取器只需在 `extractors/` 下创建带 `run()` 的 `.py` 文件——`pkgutil.iter_modules` 自动发现并注册，零配置：
+所有模块共享同一套遍历/跳过/读取基础设施，新增一个模块只需建文件 + 写 `run()` 函数：
 
 ```python
-# extractors/__init__.py — 自动注册核心
+# extractors/__init__.py — 自动注册
 for _, name, _ in pkgutil.iter_modules(__path__):
     mod = importlib.import_module(f".{name}", __package__)
     if hasattr(mod, 'run'):
@@ -90,126 +154,64 @@ for _, name, _ in pkgutil.iter_modules(__path__):
 
 ---
 
-## 🚀 闪电开始
+## 📦 扫描模块清单
 
-### 安装
-
-```bash
-git clone https://github.com/songxitao/project-insight.git
-cd project-insight
-pip install -e .
-```
-
-或者直接运行（无需安装）：
-
-```bash
-python scripts/project_insight.py [path] [--format json|plain] [--modules mod1,mod2,...]
-```
-
-### 极简启动
-
-```bash
-# 分析当前目录（安装后）
-project-insight
-
-# 或从源码直接运行
-python scripts/project_insight.py /path/to/your/project
-
-# JSON 结构化输出（推荐 AI agent 使用）
-project-insight /path/to/your/project --format json
-
-# 只运行指定模块
-project-insight /path/to/your/project --modules "deps,imports,tree"
-```
-
-### 输出示例
-
-```json
-{
-  "deps": {
-    "pyproject_deps": ["requests>=2.28.0", "click"],
-    "requirements_deps": ["flask", "pandas"],
-    "install_scripts": [{"file": "setup.sh", "packages": ["torch"]}]
-  },
-  "tree": {
-    "project_tree": {
-      "path": ".",
-      "children": [
-        {"path": "src/main.py", "tag": "[入口]", "size_kb": 2.0, "lines": 50}
-      ]
-    }
-  },
-  "imports": {
-    "source_imports": {
-      "main.py": ["os", "sys", "json"],
-      "utils.py": ["re", "pathlib"]
-    }
-  }
-}
-```
-
----
-
-## 📦 模块一览
-
-| 模块 | 功能 | 扫描范围 |
+| 模块 | 它告诉你什么 | 为什么有用 |
 |:---|:---|:---|
-| `deps` | 依赖提取 | `pyproject.toml`、`requirements*.txt`、安装脚本 |
-| `imports` | 顶层 import 提取 | `.py` 文件顶层 `import`/`from` 语句 |
-| `paths` | 本地路径硬编码扫描 | 脚本中的绝对路径引用 |
-| `tree` | 项目骨架树 | 目录结构 + 文件角色标签（入口/测试/部署/文档） |
-| `entries` | 入口点与 API 端点 | `if __name__ == '__main__'`、FastAPI/Flask 路由 |
-| `file_refs` | 文件引用扫描 | `.py` 文件中 `Path("")` / `open("")` / subprocess 脚本引用，含存在性校验（**检测重构断裂**） |
-| `env_vars` | 环境变量引用 | `os.environ.get()` / `os.getenv()` / `environ["KEY"]`、`.env` 文件、`docker-compose.yml` |
-| `model_refs` | 模型/权重文件引用 | HuggingFace ID、`from_pretrained`、模型路径配置 |
-| `urls` | 端口与 URL 硬编码 | 端口号、URL、IP 地址、localhost 引用 |
-| `local_graph` | 本地模块依赖图 | 项目内模块引用关系分析 + **`broken_imports` 断裂引用检测** |
+| `deps` | 项目依赖了哪些包 | 一眼看出技术栈 |
+| `imports` | 每个文件 import 了什么 | 理解模块依赖关系 |
+| `tree` | 目录结构 + 文件角色标签 | 快速熟悉项目骨架 |
+| `entries` | main 函数、API 路由 | 找到入口点 |
+| `env_vars` | 需要配置哪些环境变量 | 部署时不会漏配 |
+| `model_refs` | 模型文件、HuggingFace 引用 | AI 项目必备 |
+| `urls` | 硬编码的端口、URL、IP | 排查网络依赖 |
+| `paths` | 硬编码的本地路径 | 环境迁移时预警 |
+| `file_refs` | 代码中所有相对文件路径引用 | **重构断裂检测** |
+| `local_graph` | 项目内模块的引用关系 | **import 断裂检测** |
 
 ---
 
-## 🔧 进阶调优
+## 🔧 进阶用法
 
-### 跳过目录
+### `--strict` / `-s` — CI 拦截模式
 
-共享的跳过目录集在 `extractors/__init__.py` 的 `SKIP_DIRS` 中定义。新增跳过目录只需改一处：
+```bash
+# 默认：断裂引用只警告，不中断
+project-insight /path/to/project
+
+# strict：检测到断裂引用就 exit 1，CI pipeline 会失败
+project-insight /path/to/project --strict
+```
+
+### 自定义跳过目录
+
+所有提取器共享跳过列表，改一处生效：
 
 ```python
 SKIP_DIRS = frozenset({
-    '__pycache__', '.git', 'venv', '.venv', 'env',
-    'node_modules', 'build', 'dist', '.pytest_cache',
-    '.ruff_cache', '.workbuddy', 'output', 'outputs',
-    'testset', 'model', 'models', 'checkpoints',
-    '.pilot_venv', '.superpowers', '.agents', '.claude',
-    '.scratch', '.egg-info', 'site-packages',
+    '__pycache__', '.git', 'venv', 'node_modules',
+    'build', 'dist', '.pytest_cache', '.ruff_cache',
+    'model', 'models', 'checkpoints', 'output', 'outputs',
+    '.agents', '.claude', '.scratch', '.egg-info',
 })
 ```
 
-### 自定义 extractor
+### 自己写一个 extractor
 
-1. 在 `scripts/extractors/` 下新建 `<模块名>.py`
-2. 实现 `run(root_dir: str) -> dict`
-3. 可选实现 `format_plain(data: dict) -> str` 控制展示格式
-4. **无需修改任何现有代码**——自动注册
+```python
+# scripts/extractors/my_scanner.py
+from . import iter_project_files
 
-### strict 模式
+def run(root_dir: str) -> dict:
+    # 你的扫描逻辑
+    return {'my_scanner': [...]}
 
-新增 `--strict` / `-s` 标志，用于 CI 场景：
-
-- **默认模式**：检测到断裂引用只输出 `[WARN]` 到 stderr，exit 0
-- **`--strict` 模式**：检测到断裂引用直接 exit 1，让 CI pipeline 失败
-
-```bash
-# 默认模式：断裂引用仅警告
-project-insight /path/to/project
-
-# strict 模式：断裂引用即失败
-project-insight /path/to/project --strict
-
-# 从源码直接运行
-python scripts/project_insight.py /path/to/project --strict
+def format_plain(data: dict) -> str:
+    # 可选：控制纯文本输出格式
+    return '\n'.join(...)
 ```
 
-与 `file_refs`（文件引用扫描）和 `local_graph`（broken_imports）配合使用，可在 CI 中自动拦截路径断裂问题。
+放进去就自动注册，不用改任何现有代码。
 
 ---
 
@@ -219,16 +221,16 @@ python scripts/project_insight.py /path/to/project --strict
 pytest tests/ -v
 ```
 
-当前 **113 个测试覆盖全部模块**，CI（GitHub Actions）在 Python 3.9~3.13 上全绿。
+**113 个测试覆盖全部模块**，CI（GitHub Actions）在 Python 3.9~3.13 上全绿。
 
 ---
 
 ## 🤝 贡献指南
 
-欢迎 PR！请确保：
-- 新增 extractor 同时添加对应测试
-- 保持 `run()` / `format_plain()` 接口签名不变
-- 提交前通过 `pytest tests/` 全量测试
+欢迎 PR！请遵守：
+- 新增模块同时加测试
+- 保持 `run()` / `format_plain()` 接口签名
+- 提交前 `pytest tests/` 全量通过
 
 ---
 
