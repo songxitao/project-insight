@@ -21,6 +21,8 @@ checkpoints/
 
 # AI agent 规划文档（不纳入项目版本）
 docs/planning/
+.claude/
+.agents/
 
 # 自动生成的检查报告
 OSS-READINESS-REPORT.md
