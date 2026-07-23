@@ -10,13 +10,14 @@ import re
 from pathlib import Path
 from collections import defaultdict
 
-from . import iter_project_files, should_skip, safe_read
+from . import iter_project_files, safe_read
 
 
 PYTHON_ENV_PATTERNS = [
-    re.compile(r"os\.environ\.get\(\s*['\"](.+?)['\"]"),
-    re.compile(r"os\.environ\[[\s*'\"](.+?)['\"]"),
-    re.compile(r"os\.getenv\(\s*['\"](.+?)['\"]"),
+    re.compile(r"(?:os\.)?environ\.get\(\s*['\"](.+?)['\"]"),               # environ.get / os.environ.get
+    re.compile(r"(?:os\.)?environ\[\s*['\"](.+?)['\"]"),                    # environ["KEY"] / os.environ["KEY"]
+    re.compile(r"os\.getenv\(\s*['\"](.+?)['\"]"),                          # os.getenv("KEY")
+    re.compile(r"(?:os\.)?environ\.setdefault\(\s*['\"](.+?)['\"]"),       # setdefault
 ]
 
 ENV_FILE_PATTERN = re.compile(r"^([A-Z][A-Z0-9_]+)\s*=", re.MULTILINE)
@@ -24,9 +25,8 @@ ENV_FILE_PATTERN = re.compile(r"^([A-Z][A-Z0-9_]+)\s*=", re.MULTILINE)
 
 def _extract_from_python(filepath: str) -> list:
     """从 .py 文件中提取环境变量引用"""
-    try:
-        content = Path(filepath).read_text(encoding='utf-8', errors='replace')
-    except Exception:
+    content = safe_read(filepath)
+    if not content:
         return []
 
     results = []
@@ -39,7 +39,7 @@ def _extract_from_python(filepath: str) -> list:
             line = content[:m.end()].split('\n')[-1]
 
             # 检查是否有默认值
-            if 'environ.get' in line or 'getenv' in line:
+            if 'environ.get' in line or 'getenv' in line or 'setdefault' in line:
                 # 看行末是否有 default
                 after_match = content[m.end():].split('\n')[0].strip()
                 if after_match.startswith(','):
@@ -75,9 +75,8 @@ def _extract_from_python(filepath: str) -> list:
 
 def _extract_from_env(filepath: str) -> list:
     """从 .env 文件中提取环境变量"""
-    try:
-        content = Path(filepath).read_text(encoding='utf-8', errors='replace')
-    except Exception:
+    content = safe_read(filepath)
+    if not content:
         return []
 
     return [m.group(1) for m in ENV_FILE_PATTERN.finditer(content)]
@@ -85,9 +84,8 @@ def _extract_from_env(filepath: str) -> list:
 
 def _extract_from_docker_compose(filepath: str) -> list:
     """从 docker-compose.yml 中提取 environment 段"""
-    try:
-        content = Path(filepath).read_text(encoding='utf-8', errors='replace')
-    except Exception:
+    content = safe_read(filepath)
+    if not content:
         return []
 
     results = []

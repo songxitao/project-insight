@@ -25,7 +25,8 @@ from extractors import REGISTRY
 ALL_MODULES = sorted(REGISTRY.keys())
 
 
-def main():
+def main() -> None:
+    """CLI 入口：解析参数、执行模块、输出结果"""
     parser = argparse.ArgumentParser(
         description='省 token 的 AI agent 项目信息提取器',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -45,6 +46,10 @@ def main():
     parser.add_argument(
         '--modules', type=str, default=None,
         help=f'逗号分隔的模块名（默认全量）。可用: {",".join(ALL_MODULES)}',
+    )
+    parser.add_argument(
+        '--strict', '-s', action='store_true',
+        help='严格模式：检测到断裂引用时以非零退出码退出',
     )
     args = parser.parse_args()
 
@@ -83,8 +88,42 @@ def main():
     else:
         _print_plain(result)
 
+    # 严格模式 / 断裂引用警告
+    _check_broken_refs(result, args.strict)
 
-def _print_plain(result: dict):
+
+def _check_broken_refs(result: dict, strict: bool) -> None:
+    """扫描结果中的断裂引用，按模式决定行为。
+
+    - strict=True: 打印详情到 stderr 并 sys.exit(1)
+    - strict=False: 打印 [WARN] 到 stderr，不改变退出码
+    """
+    issues = []
+
+    if 'file_refs' in result:
+        for ref in result['file_refs'].get('file_refs', []):
+            if not ref.get('exists', True):
+                issues.append(f"  {ref['file']}:{ref['line']} → {ref['ref']} ({ref['type']})")
+
+    if 'local_graph' in result:
+        for fpath, imports in result['local_graph'].get('broken_imports', {}).items():
+            if imports:
+                for imp in imports:
+                    issues.append(f"  {fpath} → broken import: {imp}")
+
+    if issues:
+        if strict:
+            print("检测到断裂引用，退出码 1", file=sys.stderr)
+            for msg in issues:
+                print(msg, file=sys.stderr)
+            sys.exit(1)
+        else:
+            print("[WARN] 检测到断裂引用:", file=sys.stderr)
+            for msg in issues:
+                print(msg, file=sys.stderr)
+
+
+def _print_plain(result: dict) -> None:
     """通用分发器 — 按模块的 format_plain() 或通用兜底输出"""
     print('=' * 60)
     print('project-insight 项目信息摘要')
@@ -106,46 +145,6 @@ def _print_plain(result: dict):
         entry = REGISTRY.get(module_name)
         if entry and hasattr(entry['mod'], 'format_plain'):
             print(entry['mod'].format_plain(data))
-        else:
-            print(_format_generic(module_name, data))
-
-
-def _format_generic(module_name: str, data: dict) -> str:
-    """通用格式化 — 按 data 内的 key 分发，返回格式化字符串"""
-    lines = []
-    for key, value in data.items():
-        # 跳过 _summary 类 key（在主 key 中已显示）
-        if key.endswith('_summary') and isinstance(value, (dict, list)):
-            continue
-
-        # 跳过空数据
-        if isinstance(value, (list, dict)) and not value:
-            continue
-
-        if key == 'project_tree':
-            lines.append(f"\n🌳 项目骨架树:")
-            _append_tree(value, lines, indent=2)
-
-    return '\n'.join(lines)
-
-
-def _append_tree(node, lines: list, indent: int = 0):
-    """递归追加树节点到 lines 列表"""
-    if node is None:
-        return
-
-    prefix = '  ' * indent
-
-    if 'children' in node:
-        lines.append(f"{prefix}📁 {node['path']}/")
-        for child in node.get('children', []):
-            _append_tree(child, lines, indent + 1)
-    else:
-        tag = node.get('tag', '')
-        size = node.get('size_kb', 0)
-        lines_count = node.get('lines', 0)
-        tag_str = f" {tag}" if tag else ""
-        lines.append(f"{prefix}📄 {node['path']}{tag_str}  ({size} KB, {lines_count} 行)")
 
 
 if __name__ == '__main__':

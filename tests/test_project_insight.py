@@ -1,6 +1,7 @@
 """测试 project_insight.py 主入口脚本的各个函数"""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,16 +13,15 @@ from project_insight import (
     ALL_MODULES,
     main,
     _print_plain,
-    _format_generic,
 )
 
 
 # ── REGISTRY 加载 ────────────────────────────────────
 
 def test_registry_all_modules():
-    """所有 9 个模块都成功注册到 REGISTRY"""
+    """所有 10 个模块都成功注册到 REGISTRY"""
     expected_modules = {
-        'deps', 'imports', 'paths', 'tree', 'entries',
+        'deps', 'file_refs', 'imports', 'paths', 'tree', 'entries',
         'env_vars', 'local_graph', 'model_refs', 'urls',
     }
     assert set(REGISTRY.keys()) == expected_modules
@@ -94,6 +94,41 @@ def test_main_unknown_module(tmp_project, monkeypatch):
     with pytest.raises(SystemExit) as exc_info:
         main()
     assert exc_info.value.code == 1
+
+
+# ── --strict 标志 ────────────────────────────────────────────
+
+def test_main_default_with_broken_refs(tmp_project, monkeypatch, capsys):
+    """默认模式 + 有断裂引用 → exit 0, stderr 有 warn"""
+    (tmp_project / "test.py").write_text(
+        'ref = Path("missing.py")\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(sys, 'argv', ['prog', str(tmp_project)])
+    main()
+    captured = capsys.readouterr()
+    assert '[WARN]' in captured.err
+
+
+def test_main_strict_with_broken_refs(tmp_project, monkeypatch):
+    """--strict + 有断裂引用 → exit 1"""
+    (tmp_project / "test.py").write_text(
+        'ref = Path("missing.py")\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(sys, 'argv', ['prog', str(tmp_project), '--strict'])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 1
+
+
+def test_main_strict_without_broken_refs(tmp_project, monkeypatch, capsys):
+    """--strict + 无断裂引用 → exit 0"""
+    (tmp_project / "test.py").write_text(
+        "import os\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(sys, 'argv', ['prog', str(tmp_project), '--strict'])
+    main()
+    captured = capsys.readouterr()
+    assert captured.out.strip()
 
 
 # ── _print_plain() — 通用分发器 ────────────────────────────────
@@ -175,41 +210,48 @@ def test_print_plain(capsys):
     assert '/api/v1' in captured.out
 
 
-# ── _format_generic() — 返回字符串 ──────────────────────────────
+# ── 端到端快照测试（subprocess） ─────────────────────────────────
 
-def test_format_generic_returns_string():
-    """_format_generic 返回字符串而非直接打印"""
-    data = {
-        'project_tree': {
-            'path': 'project',
-            'children': [
-                {'path': 'README.md', 'tag': 'md', 'size_kb': 1, 'lines': 10},
-            ],
-        },
+
+def test_end_to_end_json_output():
+    """对 project-insight 自身运行 --format json，验证所有模块输出"""
+    project_root = Path(__file__).resolve().parent.parent
+    script = project_root / "scripts" / "project_insight.py"
+    result = subprocess.run(
+        [sys.executable, str(script), str(project_root), "--format", "json"],
+        capture_output=True, text=True, cwd=str(project_root),
+    )
+    assert result.returncode == 0, f"stderr: {result.stderr}"
+    data = json.loads(result.stdout)
+
+    # 断言全部 10 个模块的 key
+    expected_modules = {
+        'deps', 'entries', 'env_vars', 'imports', 'local_graph',
+        'model_refs', 'paths', 'tree', 'urls', 'file_refs',
     }
-    output = _format_generic('tree', data)
-    assert isinstance(output, str)
-    assert 'project/' in output
-    assert 'README.md' in output
+    assert expected_modules.issubset(data.keys()), \
+        f"缺少模块: {expected_modules - data.keys()}"
+
+    # file_refs 结构断言
+    assert 'file_refs' in data
+    assert isinstance(data['file_refs'], dict)
+    assert 'file_refs' in data['file_refs']
+    assert isinstance(data['file_refs']['file_refs'], list)
+
+    # local_graph 结构断言
+    assert 'local_graph' in data
+    assert isinstance(data['local_graph'], dict)
+    assert 'local_dep_graph' in data['local_graph']
+    assert 'broken_imports' in data['local_graph']
 
 
-def test_format_generic_project_tree():
-    """_format_generic 能格式化 project_tree"""
-    data = {
-        'project_tree': {
-            'path': 'project',
-            'children': [
-                {'path': 'main.py', 'tag': 'py', 'size_kb': 2, 'lines': 50},
-            ],
-        },
-    }
-    output = _format_generic('tree', data)
-    assert isinstance(output, str)
-    assert 'project/' in output
-    assert 'main.py' in output
-
-
-def test_format_generic_empty():
-    """_format_generic 空数据返回空字符串"""
-    assert _format_generic('deps', {}) == ''
-    assert _format_generic('nonexistent', {}) == ''
+def test_end_to_end_plain_output():
+    """--format plain 对所有模块无异常输出"""
+    project_root = Path(__file__).resolve().parent.parent
+    script = project_root / "scripts" / "project_insight.py"
+    result = subprocess.run(
+        [sys.executable, str(script), str(project_root), "--format", "plain"],
+        capture_output=True, text=True, cwd=str(project_root),
+    )
+    assert result.returncode == 0, f"stderr: {result.stderr}"
+    assert result.stdout.strip(), "plain 输出不应为空"

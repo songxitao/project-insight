@@ -63,12 +63,12 @@ def _collect_local_modules(root: Path) -> dict:
 
 def _get_source_imports(root_dir: str) -> dict:
     """提取所有 .py 文件的顶层 import（复用 imports 模块逻辑）"""
-    from extractors.imports import scan_imports
+    from extractors.imports import scan_imports_full
     root = Path(root_dir)
     result = {}
     for rel_f in iter_project_files(root, extensions=('.py',)):
         f = root / rel_f
-        imports = scan_imports(str(f))
+        imports = scan_imports_full(str(f))
         if imports:
             result[str(rel_f)] = imports
     return result
@@ -81,41 +81,68 @@ def run(root_dir: str) -> dict:
     source_imports = _get_source_imports(root_dir)
 
     local_dep_graph = {}
+    broken_imports = {}
 
     for file_path, imports in source_imports.items():
         local_refs = []
+        broken_refs = []
         for imp in imports:
-            # 收集所有匹配的本地模块名
-            candidates = []
-            for mod_name in local_modules:
-                if imp == mod_name:
-                    # 精确匹配优先
-                    candidates.insert(0, mod_name)
-                elif imp == mod_name.split('.')[0]:
-                    candidates.append(mod_name)
-            # 按匹配质量排序：精确匹配 > 前缀匹配（按深度，最浅优先）
-            if candidates:
-                # 选择精确匹配（如果有），否则选择最浅的包
-                exact = [c for c in candidates if c == imp]
-                if exact:
-                    local_refs.append(exact[0])
-                else:
-                    # 按层级排序，选最浅（最高层包名）
+            # imp 现在是完整路径如 "scripts.extractors.deps"
+            matched = None
+
+            # 1. 精确匹配（最高优先级）
+            if imp in local_modules:
+                matched = imp
+            else:
+                # 2. 前缀匹配：找以 imp 开头的未知模块
+                #    例如 imp="scripts.extractors.missing" 不在 local_modules 中
+                #    但 scripts.extractors 在 → 取其作为近似匹配
+                parts = imp.split('.')
+                for i in range(len(parts) - 1, 0, -1):
+                    prefix = '.'.join(parts[:i])
+                    if prefix in local_modules:
+                        matched = prefix
+                        break
+
+            if matched is None:
+                # 3. 根名 fallback：只匹配第一段
+                root_name = imp.split('.')[0]
+                candidates = [m for m in local_modules
+                              if m == root_name or m.split('.')[0] == root_name]
+                if candidates:
                     candidates.sort(key=lambda x: len(x.split('.')))
-                    local_refs.append(candidates[0])
+                    matched = candidates[0]
+
+            if matched is not None:
+                if (root / local_modules[matched]).exists():
+                    local_refs.append(matched)
+                else:
+                    broken_refs.append(matched)
+
         if local_refs:
             local_dep_graph[file_path] = sorted(set(local_refs))
+        if broken_refs:
+            broken_imports[file_path] = sorted(set(broken_refs))
 
     return {
         'local_dep_graph': local_dep_graph,
+        'broken_imports': broken_imports,
     }
 
 
 def format_plain(data: dict) -> str:
+    """将本地模块依赖图格式化为纯文本输出"""
+    lines = []
     graph = data.get('local_dep_graph', {})
-    if not graph:
-        return ''
-    lines = [f"\n🔀 本地模块依赖图 ({len(graph)} 条):"]
-    for f, refs in sorted(graph.items()):
-        lines.append(f"  {f} → {', '.join(refs)}")
+    if graph:
+        lines.append(f"\n🔀 本地模块依赖图 ({len(graph)} 条):")
+        for f, refs in sorted(graph.items()):
+            lines.append(f"  {f} → {', '.join(refs)}")
+
+    broken = data.get('broken_imports', {})
+    if broken:
+        lines.append(f"\n⚠️  断裂引用 ({sum(len(v) for v in broken.values())} 处):")
+        for f, refs in sorted(broken.items()):
+            lines.append(f"  {f} → {', '.join(refs)}")
+
     return '\n'.join(lines)

@@ -36,6 +36,38 @@ class TestEnvVarsRun:
         assert len(py_src) == 1
         assert {"name": "DB_URL", "required": False} in py_src[0]["variables"]
 
+    def test_python_environ_subscript(self, tmp_project):
+        """environ['KEY'] — 不带 os. 前缀的 short form 下标访问"""
+        make_file(tmp_project, "app.py", "from os import environ\nKEY = environ['SECRET']\n")
+        result = run(str(tmp_project))
+        py_src = result["env_vars"]["python_sources"]
+        assert len(py_src) == 1
+        assert {"name": "SECRET", "required": True} in py_src[0]["variables"]
+
+    def test_python_environ_get_short(self, tmp_project):
+        """environ.get('KEY') — 不带 os. 前缀"""
+        make_file(tmp_project, "app.py", "from os import environ\nVAL = environ.get('MY_VAR')\n")
+        result = run(str(tmp_project))
+        py_src = result["env_vars"]["python_sources"]
+        assert len(py_src) == 1
+        assert {"name": "MY_VAR", "required": False} in py_src[0]["variables"]
+
+    def test_python_environ_setdefault_short(self, tmp_project):
+        """environ.setdefault('KEY', 'val') — 不带 os. 前缀"""
+        make_file(tmp_project, "app.py", "from os import environ\nVAL = environ.setdefault('MY_VAR', 'default_val')\n")
+        result = run(str(tmp_project))
+        py_src = result["env_vars"]["python_sources"]
+        assert len(py_src) == 1
+        assert {"name": "MY_VAR", "required": False, "default": "default_val"} in py_src[0]["variables"]
+
+    def test_python_os_environ_setdefault(self, tmp_project):
+        """os.environ.setdefault('KEY', 'val')"""
+        make_file(tmp_project, "app.py", "import os\nVAL = os.environ.setdefault('MY_VAR', 'default_val')\n")
+        result = run(str(tmp_project))
+        py_src = result["env_vars"]["python_sources"]
+        assert len(py_src) == 1
+        assert {"name": "MY_VAR", "required": False, "default": "default_val"} in py_src[0]["variables"]
+
     def test_env_file(self, tmp_project):
         make_file(tmp_project, ".env", "SECRET_KEY=abc123\nDEBUG=true\n")
         result = run(str(tmp_project))

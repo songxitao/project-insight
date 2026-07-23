@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.4.1] - 2026-07-24
+
+### Fixed
+
+- `env_vars`: 合并重复正则 pattern 6→4 条，修复 `[\s*'"]` 字符类语义错误导致变量名含前导引号的 bug (P0)
+- `local_graph`: `scan_imports` 截断完整 import 路径只留根名导致 broken/local 判定整体失准 → 新增 `scan_imports_full()` 保留完整路径 + 三级匹配策略 (P0)
+- `file_refs`: `pathlib.Path("file.py")` 漏报 → 正则增加 `(?:pathlib\.)?Path` 前缀支持 (P0)
+- `env_vars`: 三处 `_extract_from_*` 函数自行 `read_text(try/except)` → 统一使用共享 `safe_read()`
+- `imports`: `scan_imports` 与 `scan_imports_full` 90% 重复代码 → `scan_imports` 改为薄封装调用 `scan_imports_full`
+
+### Changed
+
+- `project_insight.py`: 删除与 `tree.py` 重复的 `_append_tree` 死代码及无实际用途的 `_format_generic`
+- `local_graph`: `format_plain` 新增 `broken_imports` 渲染，断裂信息在 plain 格式中可视化
+- `local_graph`: `run()` 内避免 `Path(root_dir)` 每轮循环重复构造
+- `local_graph`: `root` 变量不再被 `imp.split('.')[0]` 遮蔽
+
+### Added
+
+- `imports`: 新增 `scan_imports_full()` 函数返回完整 import 路径
+
+## [0.4.0] - 2026-07-23
+
+### Added
+
+- 新增 `file_refs` 扫描模块，检测 `Path("")`/`open("")`/subprocess 三种相对文件路径引用模式，支持扩展名白名单过滤 + 文件存在性校验
+- `local_graph`: 新增 `broken_imports` key，对每个本地模块引用做文件存在性回查（盲区 3）
+- `env_vars`: 补齐 `environ["KEY"]`/`environ.get("KEY")` 短形式、`environ.setdefault("KEY","val")` 等变体扫描（盲区 4）
+- `--strict`/`-s` CLI 标志：检测到断裂引用时 `exit 1`（默认模式仅 warn），配合 file_refs/local_graph 在 CI 中阻塞重构断裂
+- 金样本端到端快照测试（对自身运行 `--format json` 验证全部 10 个模块）
+- 集成测试验证 `--format plain` 对所有模块无异常输出
+
+### Changed
+
+- `file_refs` + `local_graph` 的断裂引用在 `_print_plain` 后统一汇总 —— 默认 warn 到 stderr，`--strict` 时 exit 1
+
+### Removed
+
+- `project_insight.py`: 删除与 `tree.py` 重复的 `_append_tree` 内部函数（tree 模块已自带 `format_plain`）
+
 ## [0.3.1] - 2026-07-22
 
 ### Fixed

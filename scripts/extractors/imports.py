@@ -9,7 +9,7 @@ Import 提取模块 — 从 .py 文件提取顶层 import。
 import re
 from pathlib import Path
 
-from . import iter_project_files
+from . import iter_project_files, safe_read
 
 
 IMPORT_PATTERN = re.compile(
@@ -18,8 +18,19 @@ IMPORT_PATTERN = re.compile(
 
 
 def scan_imports(filepath: str) -> set:
-    """从 .py 文件提取顶层 import（不读函数体内部的 import）"""
-    content = Path(filepath).read_text(encoding='utf-8')
+    """从 .py 文件提取顶层 import（只保留根名）"""
+    full_imports = scan_imports_full(filepath)
+    return {imp.split('.')[0] for imp in full_imports}
+
+
+def scan_imports_full(filepath: str) -> set:
+    """从 .py 文件提取顶层 import，返回完整 import 路径（不截断根名）。
+
+    保留 'scripts.extractors.deps' 而非截断为 'scripts'。
+    """
+    content = safe_read(filepath)
+    if not content:
+        return set()
     lines = content.split('\n')
     imports = set()
     in_docstring = False
@@ -27,26 +38,21 @@ def scan_imports(filepath: str) -> set:
         stripped = line.strip()
         if not stripped:
             continue
-
-        # 跟踪文档字符串（跳过 """ 和 ''' 之间的内容）
         if stripped.startswith(('"""', "'''")):
             if stripped.count('"""') >= 2 or stripped.count("'''") >= 2:
-                # 单行文档字符串，跳过
                 continue
             in_docstring = not in_docstring
             continue
         if in_docstring:
             continue
-
-        # 跳过注释行
         if stripped.startswith('#'):
             continue
-
         m = IMPORT_PATTERN.match(stripped)
         if m:
-            root = m.group(1).split('.')[0]
+            full = m.group(1)
+            root = full.split('.')[0]
             if root != '__future__':
-                imports.add(root)
+                imports.add(full)
         if stripped.startswith(('def ', 'class ', '@')):
             break
     return imports
