@@ -95,23 +95,25 @@ for _, name, _ in pkgutil.iter_modules(__path__):
 ### 安装
 
 ```bash
-# pip 安装
-pip install project-insight
-
-# 或直接运行
 git clone https://github.com/songxitao/project-insight.git
 cd project-insight
 pip install -e .
 ```
 
+或者直接运行（无需安装）：
+
+```bash
+python scripts/project_insight.py [path] [--format json|plain] [--modules mod1,mod2,...]
+```
+
 ### 极简启动
 
 ```bash
-# 分析当前目录
+# 分析当前目录（安装后）
 project-insight
 
-# 指定项目路径
-project-insight /path/to/your/project
+# 或从源码直接运行
+python scripts/project_insight.py /path/to/your/project
 
 # JSON 结构化输出（推荐 AI agent 使用）
 project-insight /path/to/your/project --format json
@@ -202,6 +204,9 @@ project-insight /path/to/project
 
 # strict 模式：断裂引用即失败
 project-insight /path/to/project --strict
+
+# 从源码直接运行
+python scripts/project_insight.py /path/to/project --strict
 ```
 
 与 `file_refs`（文件引用扫描）和 `local_graph`（broken_imports）配合使用，可在 CI 中自动拦截路径断裂问题。
@@ -211,7 +216,6 @@ project-insight /path/to/project --strict
 ## 🔬 测试
 
 ```bash
-pip install pytest
 pytest tests/ -v
 ```
 
