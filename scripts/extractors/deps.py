@@ -18,6 +18,7 @@ except ImportError:
     try:
         import tomli as tomllib  # type: ignore[no-redef]
     except ImportError:
+        print("[deps] tomllib 和 tomli 均不可用，pyproject.toml 解析回退到正则", file=sys.stderr)
         tomllib = None
 
 from . import iter_project_files

@@ -89,25 +89,25 @@ REGEX_PATTERNS: dict[str, list[ScanPattern]] = {
     ],
     "entries": [
         ScanPattern(
-            name="ENTRY_PATTERNS",
+            name="ENTRY_MAIN_GUARD",
             pattern=re.compile(r"if\s+__name__\s*==\s*['\"]__main__['\"]"),
             module="entries",
             category="entry_points",
         ),
         ScanPattern(
-            name="ENTRY_PATTERNS",
+            name="ENTRY_WEB_FRAMEWORK",
             pattern=re.compile(r"app\s*=\s*(?:FastAPI|Flask|Sanic|Django)\s*\("),
             module="entries",
             category="entry_points",
         ),
         ScanPattern(
-            name="ENTRY_PATTERNS",
+            name="ENTRY_CLI_TOOL",
             pattern=re.compile(r"typer\.run\(|cli\.command|@click\.command"),
             module="entries",
             category="entry_points",
         ),
         ScanPattern(
-            name="ENTRY_PATTERNS",
+            name="ENTRY_SERVER_LAUNCHER",
             pattern=re.compile(r"uvicorn\.run\(|gunicorn"),
             module="entries",
             category="entry_points",
@@ -208,6 +208,18 @@ def _get_context_lines(lines: list, idx: int, max_lines: int, context: int = 2) 
 
 
 # ---------------------------------------------------------------------------
+# 按名称查找模式（替代硬编码数字索引，支持维护时增删改序）
+# ---------------------------------------------------------------------------
+
+def _get_pattern(category: str, name: str) -> re.Pattern:
+    """在 REGEX_PATTERNS[category] 中按 ScanPattern.name 查找 pattern"""
+    for sp in REGEX_PATTERNS[category]:
+        if sp.name == name:
+            return sp.pattern
+    raise KeyError(f"REGEX_PATTERNS['{category}'] 中未找到模式 '{name}'")
+
+
+# ---------------------------------------------------------------------------
 # run_urls — 硬编码端口/URL/IP 扫描
 # ---------------------------------------------------------------------------
 
@@ -219,12 +231,12 @@ def run_urls(root_dir: str) -> dict:
     all_urls = set()
     all_ips = set()
 
-    # 提取预编译正则
-    port_re = REGEX_PATTERNS["urls"][0].pattern     # PORT
-    localhost_re = REGEX_PATTERNS["urls"][1].pattern # LOCALHOST_PORT
-    zero_host_re = REGEX_PATTERNS["urls"][2].pattern # ZERO_HOST_PORT
-    url_re = REGEX_PATTERNS["urls"][3].pattern        # URL
-    ip_re = REGEX_PATTERNS["urls"][4].pattern         # IP
+    # 按名称提取预编译正则（不依赖索引位置）
+    port_re = _get_pattern("urls", "PORT")
+    localhost_re = _get_pattern("urls", "LOCALHOST_PORT")
+    zero_host_re = _get_pattern("urls", "ZERO_HOST_PORT")
+    url_re = _get_pattern("urls", "URL")
+    ip_re = _get_pattern("urls", "IP")
 
     extensions = ('.py', '.bat', '.sh', '.ps1', '.yaml', '.yml',
                   '.json', '.toml', '.cfg', '.ini', '.env', '.conf')
@@ -297,7 +309,7 @@ def run_urls(root_dir: str) -> dict:
 def run_paths(root_dir: str) -> dict:
     """扫描项目中所有硬编码的本地路径"""
     root = Path(root_dir)
-    path_re = REGEX_PATTERNS["paths"][0].pattern  # PATH
+    path_re = _get_pattern("paths", "PATH")
     result = []
 
     for rel_f in iter_project_files(root, extensions=None):
@@ -331,12 +343,13 @@ def run_entries(root_dir: str) -> dict:
 
     # 入口点模式: (pattern, entry_type)
     ENTRY_PATTERNS_TYPES = [
-        (REGEX_PATTERNS["entries"][0].pattern, 'main_guard'),
-        (REGEX_PATTERNS["entries"][1].pattern, 'web_framework'),
-        (REGEX_PATTERNS["entries"][2].pattern, 'cli_tool'),
-        (REGEX_PATTERNS["entries"][3].pattern, 'server_launcher'),
+        (_get_pattern("entries", "ENTRY_MAIN_GUARD"), 'main_guard'),
+        (_get_pattern("entries", "ENTRY_WEB_FRAMEWORK"), 'web_framework'),
+        (_get_pattern("entries", "ENTRY_CLI_TOOL"), 'cli_tool'),
+        (_get_pattern("entries", "ENTRY_SERVER_LAUNCHER"), 'server_launcher'),
     ]
-    API_PATTERN = REGEX_PATTERNS["entries"][4].pattern
+    API_PATTERN = _get_pattern("entries", "API_PATTERN")
+    API_PATTERN = _get_pattern("entries", "API_PATTERN")
 
     for rel_f in iter_project_files(root, extensions=('.py',)):
         f = root / rel_f
@@ -390,8 +403,8 @@ def run_entries(root_dir: str) -> dict:
 def run_file_refs(root_dir: str) -> dict:
     """提取项目中的文件引用"""
     root = Path(root_dir)
-    quoted_re = REGEX_PATTERNS["file_refs"][0].pattern   # QUOTED_REF
-    script_re = REGEX_PATTERNS["file_refs"][1].pattern   # SCRIPT_REF
+    quoted_re = _get_pattern("file_refs", "QUOTED_REF")
+    script_re = _get_pattern("file_refs", "SCRIPT_REF")
     findings = []
 
     for rel_f in iter_project_files(root, extensions=('.py',)):
