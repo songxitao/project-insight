@@ -13,11 +13,14 @@
 - `deps`: 双路径重构 —— A 路 pipreqs/deptry CLI（含自动安装提示），B 路 AST+映射表零依赖兜底
 - 测试迁移：旧测试移至 `tests/legacy/` 并 skip，新增 patterns 双路径测试
 
+### Fixed
+
+- `patterns`: 审查修复 H1 —— `REGEX_PATTERNS` 索引硬编码 → 新增 `_get_pattern()` 按名称查找，entries 四个入口点模式赋予唯一名
+- `deps`: 审查修复 H2 —— `tomllib`/`tomli` 均不可用时 stderr 打印警告而非静默 pass
+
 ### Removed
 
-- 删除 4 个旧 extractor 文件：`urls.py`、`paths.py`、`entries.py`、`file_refs.py`（功能由 patterns.py 替代）
-
-## [0.4.1] - 2026-07-24
+- 删除 4 个旧 extractor 文件：`urls.py`、`paths.py`、`entries.py`、`file_refs.py`（功能由 patterns.py 替代） - 2026-07-24
 
 ### Fixed
 
