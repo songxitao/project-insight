@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="v0.5.0 正则坍缩到 patterns.py，旧测试存档")
+
 """file_refs 提取器测试"""
 from pathlib import Path
 from conftest import make_file

@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="v0.5.0 正则坍缩到 patterns.py，旧测试存档")
+
 """
 Tests for urls.py — hardcoded URL, port & IP scanning.
 """

@@ -62,3 +62,11 @@ for _finder, name, _ispkg in pkgutil.iter_modules(__path__):
             REGISTRY[name] = {'run': mod.run, 'mod': mod}
     except Exception as e:
         print(f"[WARN] extractor '{name}' 模块加载失败: {e}", file=sys.stderr)
+
+# 扩展注册 — patterns.py 中坍缩的 extractor 通过 EXTRA_REGISTRY 注册
+try:
+    from . import patterns as _patterns_mod
+    if hasattr(_patterns_mod, 'EXTRA_REGISTRY'):
+        REGISTRY.update(_patterns_mod.EXTRA_REGISTRY)
+except Exception as e:
+    print(f"[WARN] patterns.py EXTRA_REGISTRY 加载失败: {e}", file=sys.stderr)

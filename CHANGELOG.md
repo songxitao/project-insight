@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0] - 2026-07-24
+
+### Added
+
+- `patterns.py`: 坍缩 urls/paths/entries/file_refs 四个 extractor 为统一配置项驱动，消除重复扫描逻辑
+- `deps`：B 路零依赖底线（AST + 映射表，无需 pipreqs/deptry 即可运行）
+
+### Changed
+
+- `imports`: 正则→AST 重写，使用 `ast.parse()` 替代正则+手动 docstring 状态机，精度更高、维护更简单
+- `deps`: 双路径重构 —— A 路 pipreqs/deptry CLI（含自动安装提示），B 路 AST+映射表零依赖兜底
+- 测试迁移：旧测试移至 `tests/legacy/` 并 skip，新增 patterns 双路径测试
+
+### Removed
+
+- 删除 4 个旧 extractor 文件：`urls.py`、`paths.py`、`entries.py`、`file_refs.py`（功能由 patterns.py 替代）
+
 ## [0.4.1] - 2026-07-24
 
 ### Fixed

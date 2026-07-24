@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="v0.5.0 正���坍缩到 patterns.py，旧测试存档")
+
 """测试 entries.py: 入口点与 API 端点提取。"""
 from pathlib import Path
 

@@ -180,7 +180,7 @@ def test_print_plain(capsys):
             'model_refs': [
                 {
                     'file': 'model.py',
-                    'model_files': ['model.pt'],
+                    'model_files': [{'path': 'model.pt', 'count': 1}],
                     'model_ids': [],
                     'model_dirs': [],
                 },
